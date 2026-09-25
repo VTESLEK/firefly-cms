@@ -92,13 +92,14 @@ export function parseFrontmatter(md) {
   const data = {};
   let currentKey = null;
   for (const line of m[1].split(/\r?\n/)) {
-    if (/^- /.test(line) && currentKey) {
-      const item = line.slice(2).trim().replace(/^["']|["']$/g, "");
+    const trimmed = line.trim();
+    if (trimmed.startsWith("- ") && currentKey) {
+      const item = trimmed.slice(2).trim().replace(/^["']|["']$/g, "");
       if (Array.isArray(data[currentKey])) data[currentKey].push(item);
       else if (data[currentKey] === undefined) data[currentKey] = [item];
       continue;
     }
-    const kv = line.match(/^([A-Za-z_]+):\s*(.*)$/);
+    const kv = trimmed.match(/^([A-Za-z_]+):\s*(.*)$/);
     if (kv) {
       currentKey = kv[1];
       const v = kv[2].trim().replace(/^["']|["']$/g, "");
