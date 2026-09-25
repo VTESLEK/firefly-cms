@@ -1,0 +1,10 @@
+name = "firefly-cms"
+compatibility_date = "2025-01-01"
+pages_build_output_dir = "public"
+
+# 环境变量（secrets）不在本文件中配置，通过以下方式设置：
+#   npx wrangler pages secret put ACCESS_PASSWORD
+#   npx wrangler pages secret put GITHUB_TOKEN
+#   npx wrangler pages secret put GITHUB_OWNER
+#   npx wrangler pages secret put GITHUB_REPO
+#   （可选）npx wrangler pages secret put GITHUB_BRANCH  默认 master

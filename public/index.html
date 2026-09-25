@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Firefly 说说 CMS</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script>
+      // 提前应用主题，避免闪白
+      (() => {
+        const t = localStorage.getItem("cms_theme");
+        const dark = t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+        if (dark) document.documentElement.classList.add("dark");
+      })();
+    </script>
+  </head>
+  <body>
+    <!-- 登录 -->
+    <section id="view-login" class="view center">
+      <div class="card login-card">
+        <div class="brand-mark">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" aria-hidden="true">
+            <circle cx="12" cy="9" r="3.2" fill="var(--accent)" />
+            <path d="M12 13.5c-3.6 0-5.5 2.2-6.5 4.5h13c-1-2.3-2.9-4.5-6.5-4.5Z" fill="var(--accent)" opacity=".55" />
+            <path d="M4.5 4.5 6 6M19.5 4.5 18 6M12 2v1.6" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" />
+          </svg>
+          <span>Firefly 说说 CMS</span>
+        </div>
+        <p class="muted">输入访问密码管理你的说说，发布后自动提交到 GitHub 并触发博客部署。</p>
+        <input id="login-password" type="password" placeholder="访问密码" autocomplete="current-password" />
+        <button id="login-btn" class="btn primary block">进入</button>
+        <p id="login-msg" class="msg"></p>
+      </div>
+    </section>
+
+    <!-- 主界面 -->
+    <section id="view-main" class="view hidden">
+      <header class="topbar">
+        <div class="wrap topbar-inner">
+          <div class="brand-mark">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
+              <circle cx="12" cy="9" r="3.2" fill="var(--accent)" />
+              <path d="M12 13.5c-3.6 0-5.5 2.2-6.5 4.5h13c-1-2.3-2.9-4.5-6.5-4.5Z" fill="var(--accent)" opacity=".55" />
+            </svg>
+            <span>Firefly 说说 CMS</span>
+          </div>
+          <div class="topbar-actions">
+            <button id="theme-toggle" class="btn ghost" title="切换主题">主题</button>
+            <button id="logout-btn" class="btn ghost">退出</button>
+          </div>
+        </div>
+      </header>
+
+      <main class="wrap">
+        <!-- 编辑器 -->
+        <div class="card editor-card">
+          <h2 id="editor-title">发布说说</h2>
+          <textarea id="f-content" rows="4" placeholder="写点什么…支持 Markdown 语法"></textarea>
+          <div class="row tags-row">
+            <div id="tags-box" class="tags-box">
+              <input id="f-tag" placeholder="输入标签后回车添加" />
+            </div>
+          </div>
+          <div id="image-preview" class="img-preview hidden">
+            <img alt="配图预览" />
+            <span class="img-path"></span>
+            <button id="img-remove" class="btn danger ghost small">移除配图</button>
+          </div>
+          <div class="row actions-row">
+            <input id="f-date" type="datetime-local" title="发布时间（东八区）" />
+            <label class="btn ghost file-label">
+              添加配图
+              <input id="f-image" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/avif" hidden />
+            </label>
+            <span class="flex-spacer"></span>
+            <button id="cancel-btn" class="btn ghost hidden">取消编辑</button>
+            <button id="publish-btn" class="btn primary">发布</button>
+          </div>
+          <p id="editor-msg" class="msg"></p>
+        </div>
+
+        <!-- 列表 -->
+        <div id="posts-list" class="posts-list"></div>
+        <p id="list-msg" class="msg center-text"></p>
+      </main>
+    </section>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

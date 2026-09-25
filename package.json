@@ -1,0 +1,14 @@
+{
+  "name": "firefly-cms",
+  "version": "1.0.0",
+  "private": true,
+  "description": "独立部署在 Cloudflare Pages 上的 Firefly 说说 CMS",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler pages dev public --port 8788",
+    "deploy": "wrangler pages deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4"
+  }
+}
