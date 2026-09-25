@@ -53,13 +53,13 @@ function gh(env, path, options = {}) {
   });
 }
 
-const base = (env, dir) =>
-  `/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${dir}?ref=${env.GITHUB_BRANCH || "master"}`;
+const base = (env, dir) => `/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${dir}`;
+const refQ = (env) => `?ref=${env.GITHUB_BRANCH || "master"}`;
 
-export const listDir = (env, dir) => gh(env, base(env, dir));
+export const listDir = (env, dir) => gh(env, base(env, dir) + refQ(env));
 
 export const getFile = (env, dir, name) =>
-  gh(env, `${base(env, dir)}/${encodeURIComponent(name)}`);
+  gh(env, `${base(env, dir)}/${encodeURIComponent(name)}${refQ(env)}`);
 
 export function putFile(env, dir, name, contentB64, message, sha) {
   const body = { message, branch: env.GITHUB_BRANCH || "master", content: contentB64 };

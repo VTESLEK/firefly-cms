@@ -10,5 +10,8 @@
   },
   "devDependencies": {
     "wrangler": "^4"
+  },
+  "optionalDependencies": {
+    "@cloudflare/workerd-windows-64": "^1.20260925.1"
   }
 }
