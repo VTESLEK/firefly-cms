@@ -30,7 +30,9 @@ export function b64ToUtf8(b64) {
 const API = "https://api.github.com";
 
 export const SHUOSHUO_DIR = "src/content/shuoshuo";
+export const POSTS_DIR = "src/content/posts";
 export const IMAGE_DIR = "public/shuoshuo/images";
+export const POST_IMAGE_DIR = "src/content/posts/images";
 
 function gh(env, path, options = {}) {
   return fetch(`${API}${path}`, {
@@ -85,7 +87,42 @@ export function deleteFile(env, dir, name, sha) {
 
 /* ---------- Markdown frontmatter ---------- */
 
-// 极简解析，覆盖本 CMS 与 Telegram Bot 产出的字段（date / tags / image）
+// 解析标量：行内数组 [a, b] / 带引号字符串 / 裸值
+function parseScalar(v) {
+  v = v.trim();
+  if (v === "[]") return [];
+  if (/^\[[\s\S]*\]$/.test(v)) {
+    const inner = v.slice(1, -1);
+    if (!inner.trim()) return [];
+    const items = [];
+    let cur = "";
+    let inQ = null;
+    for (const ch of inner) {
+      if (inQ) {
+        if (ch === inQ) inQ = null;
+        else cur += ch;
+        continue;
+      }
+      if (ch === '"' || ch === "'") {
+        inQ = ch;
+        continue;
+      }
+      if (ch === ",") {
+        items.push(cur.trim());
+        cur = "";
+        continue;
+      }
+      cur += ch;
+    }
+    items.push(cur.trim());
+    return items.map((s) => s.replace(/^["']|["']$/g, "").trim()).filter(Boolean);
+  }
+  if (/^"[\s\S]*"$/.test(v)) return v.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+  if (/^'[\s\S]*'$/.test(v)) return v.slice(1, -1);
+  return v;
+}
+
+// 极简解析，覆盖本 CMS 与 Telegram Bot 产出的字段；行内数组与块列表均支持
 export function parseFrontmatter(md) {
   const m = md.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
   if (!m) return { data: {}, content: md };
@@ -102,12 +139,15 @@ export function parseFrontmatter(md) {
     const kv = trimmed.match(/^([A-Za-z_]+):\s*(.*)$/);
     if (kv) {
       currentKey = kv[1];
-      const v = kv[2].trim().replace(/^["']|["']$/g, "");
-      if (v === "[]") data[currentKey] = [];
-      else if (v) data[currentKey] = v;
+      if (kv[2].trim()) data[currentKey] = parseScalar(kv[2]);
     }
   }
   return { data, content: (m[2] || "").replace(/^\r?\n/, "").replace(/\s+$/, "") };
+}
+
+// YAML 双引号字符串（处理转义，含冒号等特殊字符也安全）
+export function yq(s) {
+  return `"${String(s ?? "").replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
 
 // date 为带时区的 ISO 字符串（不加引号，让 js-yaml 解析成 Date）
@@ -119,6 +159,66 @@ export function buildMarkdown({ date, tags = [], image = "", content = "" }) {
     for (const t of tags) lines.push(`  - ${t}`);
   }
   lines.push("---", "", content.trim(), "");
+  return lines.join("\n");
+}
+
+/* ---------- 文章表单规范化 ---------- */
+
+const SLUG_RE = /^[\w\u4e00-\u9fa5-]+$/;
+
+// published/updated 取 YYYY-MM-DD；slug 校验后生成文件名，非法时自动兜底
+export function normalizeArticle(body) {
+  const title = String(body.title || "").trim();
+  const content = String(body.content || "").trim();
+
+  let slug = String(body.slug || "").trim().replace(/\s+/g, "-");
+  if (!SLUG_RE.test(slug)) {
+    slug = `post-${new Date(Date.now() + 8 * 3600 * 1000).toISOString().replace(/\D/g, "").slice(0, 14)}`;
+  }
+
+  const day = () => new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
+  let published = String(body.published || "").trim();
+  published = /^\d{4}-\d{2}-\d{2}/.test(published) ? published.slice(0, 10) : day();
+  let updated = String(body.updated || "").trim();
+  updated = /^\d{4}-\d{2}-\d{2}/.test(updated) ? updated.slice(0, 10) : "";
+
+  const tags = (Array.isArray(body.tags) ? body.tags : [])
+    .map((t) => String(t).trim().replace(/["']/g, ""))
+    .filter(Boolean)
+    .slice(0, 20);
+
+  return {
+    file: `${slug}.md`,
+    title,
+    published,
+    updated,
+    draft: body.draft === true,
+    pinned: body.pinned === true,
+    comment: body.comment !== false,
+    description: String(body.description || "").trim(),
+    image: String(body.image || "").trim(),
+    category: String(body.category || "").trim(),
+    author: String(body.author || "").trim(),
+    tags,
+    content,
+  };
+}
+
+// 文章 frontmatter 构建：字段与博客 zod schema 对齐
+export function buildPostMarkdown(p) {
+  const lines = ["---", `title: ${yq(p.title)}`, `published: ${p.published}`];
+  if (p.updated) lines.push(`updated: ${p.updated}`);
+  lines.push(`draft: ${p.draft === true}`, `pinned: ${p.pinned === true}`);
+  if (p.description) lines.push(`description: ${yq(p.description)}`);
+  if (p.image) lines.push(`image: ${yq(p.image)}`);
+  if (p.tags && p.tags.length) {
+    lines.push("tags:");
+    for (const t of p.tags) lines.push(`  - ${t}`);
+  }
+  if (p.category) lines.push(`category: ${yq(p.category)}`);
+  if (p.author) lines.push(`author: ${yq(p.author)}`);
+  if (p.comment === false) lines.push("comment: false");
+  lines.push("---", "", String(p.content || "").trim(), "");
   return lines.join("\n");
 }
 

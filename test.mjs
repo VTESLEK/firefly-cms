@@ -108,5 +108,46 @@ eq(rtT, tricky, "tricky quotes round-trip");
 // 空数组序列化
 eq(serializeLinks([]).trim(), "", "empty serialize");
 
+/* 9. 文章：normalizeArticle → buildPostMarkdown → parseFrontmatter round-trip */
+import { buildPostMarkdown, normalizeArticle } from "./functions/api/_gh.js";
+
+const art = normalizeArticle({
+  title: '测试"文章": 标题',
+  slug: "test-post",
+  published: "2026-09-26",
+  updated: "2026-09-27",
+  description: '描述 with "quotes"',
+  tags: ["Astro", "博客"],
+  category: "技术",
+  draft: true,
+  content: "正文第一段\n\n## 二级标题",
+});
+eq(art.file, "test-post.md", "article filename");
+const artMd = buildPostMarkdown(art);
+const artBack = parseFrontmatter(artMd);
+eq(artBack.data.title, '测试"文章": 标题', "article title round-trip");
+eq(artBack.data.published, "2026-09-26", "article published");
+eq(artBack.data.updated, "2026-09-27", "article updated");
+eq(artBack.data.draft, "true", "article draft bare true");
+eq(artBack.data.pinned, "false", "article pinned bare false");
+eq(artBack.data.tags, ["Astro", "博客"], "article tags");
+eq(artBack.data.category, "技术", "article category");
+eq(artBack.data.description, '描述 with "quotes"', "article description");
+eq(artBack.content, "正文第一段\n\n## 二级标题", "article content");
+eq(artMd.includes("comment:"), false, "comment field omitted by default");
+eq(artMd.includes("image:"), false, "image field omitted when empty");
+
+/* 10. 文章：slug 兜底 / comment:false / published 兜底 */
+const art2 = normalizeArticle({ title: "t", content: "c", slug: "bad slug!" });
+eq(/^post-\d{14}\.md$/.test(art2.file), true, "invalid slug falls back");
+const art3 = normalizeArticle({ title: "t", content: "c", slug: "  my-post  " });
+eq(art3.file, "my-post.md", "slug trimmed");
+const art4 = normalizeArticle({ title: "t", content: "c", comment: false });
+eq(buildPostMarkdown(art4).includes("comment: false"), true, "comment false written");
+const art5 = normalizeArticle({ title: "t", content: "c", published: "" });
+eq(/^\d{4}-\d{2}-\d{2}$/.test(art5.published), true, "published falls back to today");
+const art6 = normalizeArticle({ title: "t", content: "c", draft: true, pinned: true });
+eq(art6.draft === true && art6.pinned === true, true, "draft/pinned strict boolean");
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

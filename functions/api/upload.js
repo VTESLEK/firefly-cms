@@ -1,7 +1,8 @@
-// POST /api/upload  { filename, data: base64 }  →  { path: "/shuoshuo/images/xx.png" }
-// 图片提交到博客仓库 public/shuoshuo/images/，随博客一起部署
+// POST /api/upload  { filename, data: base64, dir?: "shuoshuo"|"post" }
+// dir=shuoshuo（默认）→ 博客仓库 public/shuoshuo/images/，返回 /shuoshuo/images/xx.png
+// dir=post → 博客仓库 src/content/posts/images/，返回 ./images/xx.png（文章相对路径）
 
-import { json, putFile, IMAGE_DIR } from "./_gh.js";
+import { json, putFile, IMAGE_DIR, POST_IMAGE_DIR } from "./_gh.js";
 import { requireAuth, unauthorized } from "./_auth.js";
 
 const EXT_WHITELIST = ["png", "jpg", "jpeg", "gif", "webp", "avif"];
@@ -28,11 +29,12 @@ export async function onRequestPost({ request, env }) {
     return json({ error: "图片过大，请压缩后再上传（原图约 6MB 以内）" }, 413);
   }
 
+  const isPost = body.dir === "post";
   const name = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}.${ext}`;
   try {
-    await putFile(env, IMAGE_DIR, name, body.data, `上传配图 ${name} via firefly-cms`);
+    await putFile(env, isPost ? POST_IMAGE_DIR : IMAGE_DIR, name, body.data, `上传配图 ${name} via firefly-cms`);
   } catch (e) {
     return json({ error: String(e.message) }, 502);
   }
-  return json({ path: `/shuoshuo/images/${name}` }, 201);
+  return json({ path: isPost ? `./images/${name}` : `/shuoshuo/images/${name}` }, 201);
 }
