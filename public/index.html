@@ -7,7 +7,7 @@
     <title>Firefly CMS</title>
     <link rel="stylesheet" href="/vendor/element-plus.css" />
     <link rel="stylesheet" href="/vendor/element-plus-dark.css" />
-    <link rel="stylesheet" href="/style.css?v=2.2" />
+    <link rel="stylesheet" href="/style.css?v=2.3" />
     <script>
       // 提前应用主题（默认暗色），避免闪烁
       (() => {
@@ -46,7 +46,7 @@
           <p class="login-tip">输入访问密码登录，保存后自动提交到 GitHub 并触发博客部署。</p>
           <el-input v-model="password" type="password" size="large" placeholder="访问密码" show-password @keyup.enter="login"></el-input>
           <el-button type="primary" size="large" class="login-btn" :loading="loginLoading" @click="login">登 录</el-button>
-          <p class="login-foot">Firefly CMS · Art Design Pro 风格 · v2.2</p>
+          <p class="login-foot">Firefly CMS · Art Design Pro 风格 · v2.3</p>
         </div>
       </div>
 
@@ -84,7 +84,7 @@
           </el-menu>
           <div v-show="!menuCollapsed" class="sidebar-foot">
             <a href="https://xane.eu.cc" target="_blank" rel="noopener"><el-icon><epi-position></epi-position></el-icon>前往博客</a>
-            <span class="ver">v2.2</span>
+            <span class="ver">v2.3</span>
           </div>
         </aside>
 
@@ -210,7 +210,21 @@
                     <el-button type="primary" :loading="savingPost" @click="savePost">{{ saveLabel }}</el-button>
                   </div>
                   <div class="editor-grid">
-                    <div class="card editor-main">
+                    <div
+                      class="card editor-main editor-dropzone"
+                      @dragenter="onEditorDragEnter"
+                      @dragover="onEditorDragOver"
+                      @dragleave="onEditorDragLeave"
+                      @drop="onEditorDrop"
+                    >
+                      <div v-if="dragActive" class="drop-overlay">
+                        <el-icon :size="36"><epi-upload-filled></epi-upload-filled></el-icon>
+                        <span>松开鼠标，图片上传到图床并自动插入正文</span>
+                      </div>
+                      <div v-if="imgUploading" class="drop-overlay uploading">
+                        <el-icon :size="30" class="rot"><epi-loading></epi-loading></el-icon>
+                        <span>正在上传到图床 {{ imgDone }}/{{ imgTotal }}</span>
+                      </div>
                       <el-input v-model="pf.title" size="large" class="title-input" placeholder="输入文章标题…"></el-input>
                       <div class="md-toolbar">
                         <el-button-group>
@@ -226,8 +240,18 @@
                           <el-icon><epi-picture></epi-picture></el-icon><span>插图</span>
                         </el-button>
                         <input ref="pImage" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/avif" hidden @change="onInsertImage" />
+                        <span class="flex-spacer"></span>
+                        <span class="muted md-hint">可直接拖入或 Ctrl+V 粘贴图片</span>
                       </div>
-                      <el-input ref="pContent" v-model="pf.content" type="textarea" :rows="18" placeholder="正文内容，支持 Markdown 语法…" spellcheck="false"></el-input>
+                      <el-input
+                        ref="pContent"
+                        v-model="pf.content"
+                        type="textarea"
+                        :rows="18"
+                        placeholder="正文内容，支持 Markdown 语法，可直接拖入 / 粘贴图片…"
+                        spellcheck="false"
+                        @paste="onEditorPaste"
+                      ></el-input>
                       <div class="meta-row">
                         <span class="muted">{{ wordcount }} 字</span>
                         <span class="flex-spacer"></span>
@@ -288,9 +312,29 @@
               <!-- ============ 说说管理 ============ -->
               <section v-else-if="page === 'shuoshuo'" class="page">
                 <div class="page-head"><h1>说说管理</h1></div>
-                <div class="card editor-card">
+                <div
+                  class="card editor-card editor-dropzone"
+                  @dragenter="onShuoDragEnter"
+                  @dragover="onShuoDragOver"
+                  @dragleave="onShuoDragLeave"
+                  @drop="onShuoDrop"
+                >
+                  <div v-if="shuoDragActive" class="drop-overlay">
+                    <el-icon :size="36"><epi-upload-filled></epi-upload-filled></el-icon>
+                    <span>松开鼠标，图片上传到图床作为配图</span>
+                  </div>
+                  <div v-if="imgUploading" class="drop-overlay uploading">
+                    <el-icon :size="30" class="rot"><epi-loading></epi-loading></el-icon>
+                    <span>正在上传到图床 {{ imgDone }}/{{ imgTotal }}</span>
+                  </div>
                   <h2>{{ editingShuoFile ? "编辑说说" : "发布说说" }}</h2>
-                  <el-input v-model="sf.content" type="textarea" :rows="4" placeholder="写点什么…支持 Markdown 语法"></el-input>
+                  <el-input
+                    v-model="sf.content"
+                    type="textarea"
+                    :rows="4"
+                    placeholder="写点什么…支持 Markdown 语法，可直接拖入 / 粘贴图片"
+                    @paste="onShuoPaste"
+                  ></el-input>
                   <div class="field">
                     <span class="field-label">标签（回车添加）</span>
                     <div class="tags-input-box">
@@ -439,6 +483,6 @@
     <script src="/vendor/element-plus.full.min.js"></script>
     <script src="/vendor/zh-cn.min.js"></script>
     <script src="/vendor/element-icons.iife.min.js"></script>
-    <script src="/app.js?v=2.2"></script>
+    <script src="/app.js?v=2.3"></script>
   </body>
 </html>

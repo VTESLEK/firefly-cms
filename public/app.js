@@ -93,6 +93,11 @@ const App = {
       editorView: false,
       editingPostFile: null,
       savingPost: false,
+      dragDepth: 0,
+      dragActive: false,
+      imgUploading: false,
+      imgDone: 0,
+      imgTotal: 0,
       pf: {
         title: "", slug: "", published: "", updated: "", category: "",
         description: "", image: "", draft: false, pinned: false, comment: true, content: "",
@@ -106,6 +111,8 @@ const App = {
       shuoError: "",
       editingShuoFile: null,
       publishing: false,
+      shuoDragDepth: 0,
+      shuoDragActive: false,
       sf: { content: "", image: "", date: "" },
       sTags: [],
       sTagInput: "",
@@ -334,6 +341,7 @@ const App = {
 
     /* ---------- 文章：编辑器 ---------- */
     resetPostEditor() {
+      this.resetEditorDrag();
       this.editingPostFile = null;
       Object.assign(this.pf, {
         title: "", slug: "", published: today(), updated: "", category: "",
@@ -427,18 +435,157 @@ const App = {
       ta.setSelectionRange(p, p);
     },
 
-    /* 上传 */
-    async uploadImageFile(file, dir) {
-      const data = await new Promise((resolve, reject) => {
+    /* ---------- 图片上传（Sanyue 图床，经 /api/imgbed/upload 代理） ---------- */
+    readFileB64(file) {
+      return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
         reader.onerror = () => reject(new Error("读取图片失败"));
         reader.readAsDataURL(file);
       });
-      return this.api("/api/upload", {
+    },
+    async uploadImageFile(file, dir) {
+      const data = await this.readFileB64(file);
+      return this.api("/api/imgbed/upload", {
         method: "POST",
         body: JSON.stringify({ filename: file.name, data, dir }),
       });
+    },
+    // 批量上传图片到图床，返回外链数组
+    async uploadImageFiles(files, dir) {
+      const urls = [];
+      this.imgTotal = files.length;
+      this.imgDone = 0;
+      this.imgUploading = true;
+      try {
+        for (const f of files) {
+          try {
+            const { path } = await this.uploadImageFile(f, dir);
+            urls.push(path);
+          } catch (e) {
+            ElMessage.error(`${f.name} 上传失败：${e.message}`);
+          }
+          this.imgDone += 1;
+        }
+      } finally {
+        this.imgUploading = false;
+      }
+      return urls;
+    },
+    pickImageFiles(dataTransfer) {
+      if (!dataTransfer) return [];
+      const files = dataTransfer.files?.length ? [...dataTransfer.files] : [];
+      return files.filter((f) => f.type.startsWith("image/"));
+    },
+    pasteImageFiles(e) {
+      const items = e.clipboardData?.items;
+      if (!items) return [];
+      return [...items]
+        .filter((it) => it.kind === "file" && String(it.type).startsWith("image/"))
+        .map((it) => it.getAsFile())
+        .filter(Boolean);
+    },
+    hasDragFiles(e) {
+      return e.dataTransfer && [...(e.dataTransfer.types || [])].includes("Files");
+    },
+    async insertTextAt(pos, text) {
+      const at = Math.max(0, Math.min(pos, this.pf.content.length));
+      this.pf.content = this.pf.content.slice(0, at) + text + this.pf.content.slice(at);
+      await this.$nextTick();
+      const ta = this.getTextarea();
+      if (ta) {
+        const p = at + text.length;
+        ta.focus();
+        ta.setSelectionRange(p, p);
+      }
+    },
+
+    /* 文章编辑器：拖拽 / 粘贴图片 */
+    onEditorDragEnter(e) {
+      if (!this.hasDragFiles(e)) return;
+      e.preventDefault();
+      this.dragDepth += 1;
+      this.dragActive = true;
+    },
+    onEditorDragOver(e) {
+      if (this.hasDragFiles(e)) e.preventDefault();
+    },
+    onEditorDragLeave() {
+      this.dragDepth = Math.max(0, this.dragDepth - 1);
+      if (this.dragDepth === 0) this.dragActive = false;
+    },
+    resetEditorDrag() {
+      this.dragDepth = 0;
+      this.dragActive = false;
+    },
+    async onEditorDrop(e) {
+      if (!this.hasDragFiles(e)) return;
+      e.preventDefault();
+      this.resetEditorDrag();
+      const files = this.pickImageFiles(e.dataTransfer);
+      if (!files.length) return;
+      const ta = this.getTextarea();
+      const pos = ta ? ta.selectionStart ?? this.pf.content.length : this.pf.content.length;
+      ElMessage.info(`开始上传 ${files.length} 张图片到图床…`);
+      const urls = await this.uploadImageFiles(files, "post");
+      if (urls.length) {
+        const block = urls.map((u) => `![](${u})`).join("\n") + "\n";
+        await this.insertTextAt(pos, block);
+        ElMessage.success(`已插入 ${urls.length} 张图片链接`);
+      }
+    },
+    onEditorPaste(e) {
+      const files = this.pasteImageFiles(e);
+      if (!files.length) return;
+      e.preventDefault();
+      const ta = this.getTextarea();
+      const pos = ta ? ta.selectionStart ?? this.pf.content.length : this.pf.content.length;
+      ElMessage.info(`正在上传粘贴的图片到图床…`);
+      this.uploadImageFiles(files, "post").then((urls) => {
+        if (urls.length) {
+          this.insertTextAt(pos, urls.map((u) => `![](${u})`).join("\n") + "\n");
+          ElMessage.success("图片已插入正文");
+        }
+      });
+    },
+
+    /* 说说编辑器：拖拽 / 粘贴图片（说说仅支持 1 张配图） */
+    onShuoDragEnter(e) {
+      if (!this.hasDragFiles(e)) return;
+      e.preventDefault();
+      this.shuoDragDepth += 1;
+      this.shuoDragActive = true;
+    },
+    onShuoDragOver(e) {
+      if (this.hasDragFiles(e)) e.preventDefault();
+    },
+    onShuoDragLeave() {
+      this.shuoDragDepth = Math.max(0, this.shuoDragDepth - 1);
+      if (this.shuoDragDepth === 0) this.shuoDragActive = false;
+    },
+    resetShuoDrag() {
+      this.shuoDragDepth = 0;
+      this.shuoDragActive = false;
+    },
+    async applyShuoImages(files) {
+      const urls = await this.uploadImageFiles(files, "shuoshuo");
+      if (!urls.length) return;
+      this.sf.image = urls[0];
+      if (urls.length > 1) ElMessage.warning(`说说仅支持 1 张配图，已使用第 1 张，其余 ${urls.length - 1} 张已上传但未引用`);
+      else ElMessage.success("配图已上传");
+    },
+    async onShuoDrop(e) {
+      if (!this.hasDragFiles(e)) return;
+      e.preventDefault();
+      this.resetShuoDrag();
+      const files = this.pickImageFiles(e.dataTransfer);
+      if (files.length) await this.applyShuoImages(files);
+    },
+    onShuoPaste(e) {
+      const files = this.pasteImageFiles(e);
+      if (!files.length) return;
+      e.preventDefault();
+      this.applyShuoImages(files);
     },
     async onInsertImage(e) {
       const file = e.target.files[0];
@@ -531,6 +678,7 @@ const App = {
       }
     },
     resetShuoEditor() {
+      this.resetShuoDrag();
       this.editingShuoFile = null;
       this.sf.content = "";
       this.sf.image = "";
