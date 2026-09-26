@@ -1,138 +1,52 @@
-// Firefly CMS 前端逻辑（无框架、无构建）
+// Firefly CMS — Vue 3 + Element Plus（Art Design Pro 风格，无构建）
 // 页面：工作台 / 文章管理 / 说说管理 / 友链管理
 
-const $ = (id) => document.getElementById(id);
-
 const PAGE_NAMES = { dashboard: "工作台", posts: "文章管理", shuoshuo: "说说管理", links: "友链管理" };
+const PRIMARY_COLORS = ["#5D87FF", "#B48DF3", "#1D84FF", "#60C041", "#38C0FC", "#F9901F", "#FF80C8"];
+const BLOG_URL = "https://xane.eu.cc";
 
-const state = {
-  token: localStorage.getItem("cms_token") || "",
-  page: "dashboard",
-  postsLoaded: false,
-  posts: [],
-  linksLoaded: false,
-  links: [],
-  linksDirty: false,
-  editingLinkIndex: null,
-  // 说说编辑器
-  tags: [],
-  image: "",
-  editingFile: null,
-  // 文章编辑器
-  pTags: [],
-  editingPost: null,
-  cover: "",
-};
+const { createApp } = Vue;
+const { ElMessage, ElMessageBox } = ElementPlus;
 
-/* ---------- API ---------- */
+/* ---------- 主题工具 ---------- */
 
-async function api(path, options = {}) {
-  const res = await fetch(path, {
-    ...options,
-    headers: {
-      "content-type": "application/json",
-      ...(state.token ? { Authorization: `Bearer ${state.token}` } : {}),
-      ...(options.headers || {}),
-    },
-  });
-  const data = await res.json().catch(() => ({}));
-  if (res.status === 401 && path !== "/api/login") {
-    logout();
-    throw new Error(data.error || "登录已过期，请重新登录");
-  }
-  if (!res.ok) throw new Error(data.error || `请求失败（${res.status}）`);
-  return data;
+function applyPrimaryVar(color) {
+  const s = document.documentElement.style;
+  const mix = (c1, c2, w) => `color-mix(in srgb, ${c1} ${w}%, ${c2})`;
+  s.setProperty("--el-color-primary", color);
+  s.setProperty("--el-color-primary-dark-2", mix(color, "#000000", 80));
+  s.setProperty("--el-color-primary-light-3", mix(color, "#ffffff", 70));
+  s.setProperty("--el-color-primary-light-5", mix(color, "#ffffff", 50));
+  s.setProperty("--el-color-primary-light-7", mix(color, "#ffffff", 30));
+  s.setProperty("--el-color-primary-light-8", mix(color, "#ffffff", 20));
+  s.setProperty("--el-color-primary-light-9", mix(color, "#ffffff", 10));
+  s.setProperty("--primary", color);
 }
 
-/* ---------- 登录 ---------- */
-
-function showMain() {
-  $("view-login").classList.add("hidden");
-  $("view-main").classList.remove("hidden");
-  switchPage("dashboard");
-}
-function showLogin() {
-  $("view-main").classList.add("hidden");
-  $("view-login").classList.remove("hidden");
-  $("login-password").value = "";
-  setTimeout(() => $("login-password").focus(), 50);
-}
-function logout(clear = true) {
-  if (clear) localStorage.removeItem("cms_token");
-  state.token = "";
-  showLogin();
+function applyRadiusVar(r) {
+  document.documentElement.style.setProperty("--radius", r + "px");
 }
 
-async function login() {
-  const btn = $("login-btn");
-  const msg = $("login-msg");
-  const password = $("login-password").value;
-  if (!password) return;
-  btn.disabled = true;
-  msg.textContent = "";
-  try {
-    const { token } = await api("/api/login", {
-      method: "POST",
-      body: JSON.stringify({ password }),
-    });
-    state.token = token;
-    localStorage.setItem("cms_token", token);
-    showMain();
-  } catch (e) {
-    msg.textContent = e.message;
-  } finally {
-    btn.disabled = false;
-  }
-}
-
-/* ---------- 主题 ---------- */
-
-function applyTheme(dark) {
+function applyDarkVar(dark) {
   document.documentElement.classList.toggle("dark", dark);
   localStorage.setItem("cms_theme", dark ? "dark" : "light");
 }
 
-/* ---------- 侧边栏导航 ---------- */
-
-function switchPage(page) {
-  state.page = page;
-  document.querySelectorAll(".menu-item").forEach((b) => b.classList.toggle("active", b.dataset.page === page));
-  document.querySelectorAll(".page").forEach((s) => s.classList.toggle("hidden", s.id !== `page-${page}`));
-  $("breadcrumb").textContent = `后台 / ${PAGE_NAMES[page]}`;
-  closeSidebar();
-  if (page === "dashboard") loadDashboard();
-  else if (page === "posts") loadArticles();
-  else if (page === "shuoshuo") loadShuoshuo();
-  else if (page === "links") loadLinks();
-}
-
-function closeSidebar() {
-  $("sidebar").classList.remove("open");
-  $("sidebar-mask").classList.add("hidden");
-}
-
 /* ---------- 小工具 ---------- */
-
-function el(tag, cls, text) {
-  const n = document.createElement(tag);
-  if (cls) n.className = cls;
-  if (text !== undefined) n.textContent = text;
-  return n;
-}
 
 // 今天（东八区），用于 date 输入默认值
 function today() {
   return new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
 }
 
-// 当前时间，供 datetime-local 默认值（浏览器本地时区）
+// 当前时间，供 datetime 默认值（浏览器本地时区）
 function localNow() {
   const d = new Date();
   d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
   return d.toISOString().slice(0, 16);
 }
 
-// 后端日期（ISO 带时区）→ datetime-local 值，按东八区展示
+// 后端日期（ISO 带时区）→ datetime 值，按东八区展示
 function toDatetimeLocal(dateStr) {
   const ms = Date.parse(dateStr);
   if (Number.isNaN(ms)) return localNow();
@@ -145,797 +59,651 @@ function displayDate(dateStr) {
   return String(dateStr).replace("T", " ").slice(0, 16);
 }
 
-function insertAtCursor(textarea, text) {
-  const s = textarea.selectionStart;
-  const e = textarea.selectionEnd;
-  textarea.setRangeText(text, s, e, "end");
-  textarea.focus();
-}
+const App = {
+  data() {
+    return {
+      token: localStorage.getItem("cms_token") || "",
+      loggedIn: false,
+      password: "",
+      loginLoading: false,
 
-/* ---------- 工作台 ---------- */
+      // 布局
+      page: "dashboard",
+      tabs: [{ key: "dashboard", title: PAGE_NAMES.dashboard }],
+      collapsed: false,
+      mobileOpen: false,
+      isMobile: false,
 
-async function loadDashboard() {
-  try {
-    const [p, s, l] = await Promise.all([api("/api/posts"), api("/api/shuoshuo"), api("/api/links")]);
-    state.posts = p.posts;
-    state.postsLoaded = true;
-    state.shuoshuo = s.posts;
-    state.links = l.links;
-    if (!state.linksDirty) {
-      state.linksLoaded = true;
-    }
-    $("stat-posts").textContent = state.posts.length;
-    $("stat-drafts").textContent = state.posts.filter((x) => x.draft).length;
-    $("stat-shuoshuo").textContent = s.posts.length;
-    $("stat-links").textContent = l.links.filter((x) => x.enabled).length;
-    renderRecent();
-  } catch (e) {
-    $("recent-msg").textContent = e.message;
-  }
-}
+      // 主题
+      dark: document.documentElement.classList.contains("dark"),
+      primary: localStorage.getItem("cms_primary") || PRIMARY_COLORS[0],
+      radius: Number(localStorage.getItem("cms_radius")) || 12,
+      settingsOpen: false,
+      primaryColors: PRIMARY_COLORS,
 
-function renderRecent() {
-  const list = $("recent-list");
-  const msg = $("recent-msg");
-  msg.textContent = "";
-  list.innerHTML = "";
-  if (!state.posts.length) {
-    msg.textContent = "还没有文章，去「文章管理」写第一篇吧";
-    return;
-  }
-  for (const a of state.posts.slice(0, 5)) {
-    const row = el("div", "recent-row");
-    const left = el("div", "recent-main");
-    const title = el("span", "recent-title", a.title);
-    if (a.draft) title.appendChild(el("span", "badge gray", "草稿"));
-    if (a.pinned) title.appendChild(el("span", "badge accent", "置顶"));
-    left.appendChild(title);
-    left.appendChild(el("div", "recent-meta", [String(a.published).slice(0, 10), a.category].filter(Boolean).join(" · ")));
-    const date = el("span", "recent-date", String(a.published).slice(0, 10));
-    row.append(left, date);
-    row.onclick = () => openPostEditor(a.file);
-    list.appendChild(row);
-  }
-}
+      // 工作台
+      dashboardLoading: false,
+      recentError: "",
+      stats: { posts: 0, drafts: 0, shuoshuo: 0, links: 0 },
+      recentPosts: [],
 
-/* ---------- 文章管理：列表 ---------- */
+      // 文章
+      posts: [],
+      postsLoading: false,
+      editorView: false,
+      editingPostFile: null,
+      savingPost: false,
+      pf: {
+        title: "", slug: "", published: "", updated: "", category: "",
+        description: "", image: "", draft: false, pinned: false, comment: true, content: "",
+      },
+      pTags: [],
+      pTagInput: "",
 
-async function loadArticles() {
-  const table = $("posts-table");
-  const msg = $("posts-msg");
-  msg.textContent = "";
-  table.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div>';
-  try {
-    const { posts } = await api("/api/posts");
-    state.posts = posts;
-    state.postsLoaded = true;
-    table.innerHTML = "";
-    if (!posts.length) {
-      msg.textContent = "还没有文章，点右上角「写新文章」开始创作吧";
-      return;
-    }
-    for (const a of posts) table.appendChild(renderArticleRow(a));
-  } catch (e) {
-    table.innerHTML = "";
-    msg.textContent = e.message;
-  }
-}
+      // 说说
+      shuoshuoList: [],
+      shuoLoading: false,
+      shuoError: "",
+      editingShuoFile: null,
+      publishing: false,
+      sf: { content: "", image: "", date: "" },
+      sTags: [],
+      sTagInput: "",
 
-function renderArticleRow(a) {
-  const row = el("div", "article-row");
-  const main = el("div", "article-main");
-
-  const titleLine = el("div", "article-title-line");
-  const title = el("span", "article-title", a.title);
-  titleLine.appendChild(title);
-  if (a.draft) titleLine.appendChild(el("span", "badge gray", "草稿"));
-  if (a.pinned) titleLine.appendChild(el("span", "badge accent", "置顶"));
-  main.appendChild(titleLine);
-
-  const meta = [
-    String(a.published).slice(0, 10),
-    a.category || "",
-    (a.tags || []).map((t) => `#${t}`).join(" "),
-  ]
-    .filter(Boolean)
-    .join(" · ");
-  main.appendChild(el("div", "article-meta", meta));
-
-  const actions = el("div", "row-actions");
-  const editBtn = el("button", "btn ghost small", "编辑");
-  editBtn.onclick = (ev) => {
-    ev.stopPropagation();
-    openPostEditor(a.file);
-  };
-  const delBtn = el("button", "btn danger ghost small", "删除");
-  delBtn.onclick = async (ev) => {
-    ev.stopPropagation();
-    if (!confirm(`确定删除文章「${a.title}」？（${a.file}）此操作不可恢复`)) return;
-    delBtn.disabled = true;
-    try {
-      await api(`/api/posts/${encodeURIComponent(a.file)}`, { method: "DELETE" });
-      await loadArticles();
-    } catch (e) {
-      alert(e.message);
-      delBtn.disabled = false;
-    }
-  };
-  actions.append(editBtn, delBtn);
-
-  row.append(main, actions);
-  return row;
-}
-
-/* ---------- 文章管理：编辑器 ---------- */
-
-function resetPostEditor() {
-  state.pTags = [];
-  state.editingPost = null;
-  state.cover = "";
-  $("p-title").value = "";
-  $("p-slug").value = "";
-  $("p-slug").disabled = false;
-  $("p-published").value = today();
-  $("p-updated").value = "";
-  $("p-category").value = "";
-  $("p-description").value = "";
-  $("p-content").value = "";
-  $("p-draft").checked = false;
-  $("p-pinned").checked = false;
-  $("p-comment").checked = true;
-  $("p-tag").value = "";
-  renderPTags();
-  showCoverPreview();
-  updateWordcount();
-  updateSaveLabel();
-  $("p-editor-title").textContent = "写新文章";
-  $("p-msg").textContent = "";
-  $("p-msg").className = "msg";
-}
-
-async function openPostEditor(file) {
-  resetPostEditor();
-  if (file) {
-    $("p-msg").textContent = "正在加载文章…";
-    try {
-      const a = await api(`/api/posts/${encodeURIComponent(file)}`);
-      state.editingPost = a;
-      $("p-title").value = a.title || "";
-      $("p-slug").value = a.file.replace(/\.md$/, "");
-      $("p-slug").disabled = true;
-      $("p-published").value = String(a.published || today()).slice(0, 10);
-      $("p-updated").value = today();
-      $("p-category").value = a.category || "";
-      state.pTags = [...(a.tags || [])];
-      $("p-description").value = a.description || "";
-      state.cover = a.image || "";
-      $("p-draft").checked = !!a.draft;
-      $("p-pinned").checked = !!a.pinned;
-      $("p-comment").checked = a.comment !== false;
-      $("p-content").value = a.content || "";
-      $("p-editor-title").textContent = `编辑：${a.title || a.file}`;
-      $("p-save").textContent = "保存修改";
-      renderPTags();
-      showCoverPreview();
-      updateWordcount();
-      updateSaveLabel();
-    } catch (e) {
-      $("p-msg").textContent = e.message;
-      return;
-    }
-  }
-  $("posts-list-view").classList.add("hidden");
-  $("post-editor-view").classList.remove("hidden");
-  $("p-msg").textContent = "";
-  window.scrollTo({ top: 0, behavior: "smooth" });
-  setTimeout(() => $("p-title").focus(), 60);
-}
-
-function backToPostList() {
-  $("post-editor-view").classList.add("hidden");
-  $("posts-list-view").classList.remove("hidden");
-  loadArticles();
-}
-
-function updateSaveLabel() {
-  if (state.editingPost) {
-    $("p-save").textContent = "保存修改";
-  } else {
-    $("p-save").textContent = $("p-draft").checked ? "存为草稿" : "发布文章";
-  }
-}
-
-function updateWordcount() {
-  const n = $("p-content").value.replace(/\s/g, "").length;
-  $("p-wordcount").textContent = `${n} 字`;
-}
-
-/* 文章标签 */
-function renderPTags() {
-  const box = $("p-tags-box");
-  box.querySelectorAll(".tag-chip").forEach((elx) => elx.remove());
-  for (const tag of state.pTags) {
-    const chip = el("span", "tag-chip", tag);
-    const x = el("button", null, "×");
-    x.onclick = () => {
-      state.pTags = state.pTags.filter((t) => t !== tag);
-      renderPTags();
+      // 友链
+      links: [],
+      linksLoading: false,
+      linksError: "",
+      linksDirty: false,
+      savingLinks: false,
+      editingLinkIndex: null,
+      lf: { title: "", siteurl: "", imgurl: "", tags: "", desc: "", weight: 0, enabled: true },
     };
-    chip.appendChild(x);
-    box.insertBefore(chip, $("p-tag"));
-  }
-}
-function addPTag() {
-  const input = $("p-tag");
-  const t = input.value.trim().replace(/\s+/g, "");
-  if (t && !state.pTags.includes(t)) {
-    state.pTags.push(t);
-    renderPTags();
-  }
-  input.value = "";
-}
+  },
 
-/* 封面图 */
-function showCoverPreview() {
-  const box = $("p-cover-preview");
-  if (!state.cover) {
-    box.classList.add("hidden");
-    return;
-  }
-  box.classList.remove("hidden");
-  box.querySelector("img").src = state.cover.startsWith("./") ? (state.cover.replace("./", "/posts/")) : state.cover;
-  box.querySelector(".img-path").textContent = state.cover;
-}
+  computed: {
+    menuCollapsed() {
+      return this.collapsed && !this.isMobile;
+    },
+    isDesktopCollapsed() {
+      return this.collapsed && !this.isMobile;
+    },
+    sidebarToggleIcon() {
+      const hidden = this.isMobile ? !this.mobileOpen : this.collapsed;
+      return hidden ? "EpiExpand" : "EpiFold";
+    },
+    breadcrumbItems() {
+      if (this.page === "posts" && this.editorView) {
+        return ["文章管理", this.editingPostFile ? "编辑文章" : "写新文章"];
+      }
+      if (this.page === "dashboard") return [];
+      return [PAGE_NAMES[this.page]];
+    },
+    statCards() {
+      return [
+        { label: "文章总数", value: this.stats.posts, icon: "EpiDocument", color: "#5D87FF", bg: "rgba(93,135,255,.14)" },
+        { label: "草稿箱", value: this.stats.drafts, icon: "EpiEditPen", color: "#F9901F", bg: "rgba(249,144,31,.14)" },
+        { label: "说说", value: this.stats.shuoshuo, icon: "EpiChatDotRound", color: "#60C041", bg: "rgba(96,192,65,.14)" },
+        { label: "友链（启用）", value: this.stats.links, icon: "EpiLink", color: "#B48DF3", bg: "rgba(180,141,243,.16)" },
+      ];
+    },
+    wordcount() {
+      return this.pf.content.replace(/\s/g, "").length;
+    },
+    saveLabel() {
+      return this.editingPostFile ? "保存修改" : this.pf.draft ? "存为草稿" : "发布文章";
+    },
+    coverSrc() {
+      if (!this.pf.image) return "";
+      return this.pf.image.startsWith("./") ? this.pf.image.replace("./", "/posts/") : this.pf.image;
+    },
+    linksCountText() {
+      const enabled = this.links.filter((l) => l.enabled).length;
+      return `共 ${this.links.length} 条 · 启用 ${enabled} 条${this.linksDirty ? " · 有未保存修改" : ""}`;
+    },
+  },
 
-async function uploadImageFile(file, dir) {
-  const data = await new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
-    reader.onerror = () => reject(new Error("读取图片失败"));
-    reader.readAsDataURL(file);
-  });
-  return api("/api/upload", {
-    method: "POST",
-    body: JSON.stringify({ filename: file.name, data, dir }),
-  });
-}
-
-/* Markdown 工具栏 */
-function mdWrap(before, after, placeholder) {
-  const ta = $("p-content");
-  const s = ta.selectionStart;
-  const e = ta.selectionEnd;
-  const sel = ta.value.slice(s, e) || placeholder;
-  ta.setRangeText(before + sel + after, s, e, "select");
-  ta.focus();
-  updateWordcount();
-}
-function mdLinePrefix(prefix) {
-  const ta = $("p-content");
-  const s = ta.selectionStart;
-  const lineStart = ta.value.lastIndexOf("\n", s - 1) + 1;
-  ta.setRangeText(prefix, lineStart, lineStart, "end");
-  ta.focus();
-}
-
-async function savePost() {
-  const btn = $("p-save");
-  const msg = $("p-msg");
-  const title = $("p-title").value.trim();
-  const content = $("p-content").value.trim();
-  const setMsg = (t, ok) => {
-    msg.textContent = t;
-    msg.className = ok ? "msg ok" : "msg";
-  };
-  if (!title) return setMsg("标题不能为空");
-  if (!content) return setMsg("正文不能为空");
-
-  const payload = {
-    title,
-    slug: $("p-slug").value.trim(),
-    published: $("p-published").value,
-    updated: $("p-updated").value,
-    category: $("p-category").value.trim(),
-    tags: state.pTags,
-    description: $("p-description").value.trim(),
-    image: state.cover,
-    draft: $("p-draft").checked,
-    pinned: $("p-pinned").checked,
-    comment: $("p-comment").checked,
-    content,
-  };
-  btn.disabled = true;
-  setMsg("正在保存…");
-  try {
-    if (state.editingPost) {
-      await api(`/api/posts/${encodeURIComponent(state.editingPost.file)}`, {
-        method: "PUT",
-        body: JSON.stringify(payload),
+  methods: {
+    /* ---------- API ---------- */
+    async api(path, options = {}) {
+      const res = await fetch(path, {
+        ...options,
+        headers: {
+          "content-type": "application/json",
+          ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
+          ...(options.headers || {}),
+        },
       });
-    } else {
-      const { file } = await api("/api/posts", { method: "POST", body: JSON.stringify(payload) });
-      state.editingPost = { file };
-    }
-    setMsg("已保存，博客将在 1-3 分钟内自动更新", true);
-    setTimeout(backToPostList, 800);
-  } catch (e) {
-    setMsg(e.message);
-  } finally {
-    btn.disabled = false;
-  }
-}
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401 && path !== "/api/login") {
+        this.forceLogout();
+        throw new Error(data.error || "登录已过期，请重新登录");
+      }
+      if (!res.ok) throw new Error(data.error || `请求失败（${res.status}）`);
+      return data;
+    },
 
-/* ---------- 说说管理 ---------- */
+    /* ---------- 登录 / 退出 ---------- */
+    async login() {
+      if (!this.password) return;
+      this.loginLoading = true;
+      try {
+        const { token } = await this.api("/api/login", {
+          method: "POST",
+          body: JSON.stringify({ password: this.password }),
+        });
+        this.token = token;
+        localStorage.setItem("cms_token", token);
+        this.loggedIn = true;
+        this.tabs = [{ key: "dashboard", title: PAGE_NAMES.dashboard }];
+        this.handleMenuSelect("dashboard");
+      } catch (e) {
+        ElMessage.error(e.message);
+      } finally {
+        this.loginLoading = false;
+      }
+    },
+    forceLogout() {
+      localStorage.removeItem("cms_token");
+      this.token = "";
+      this.loggedIn = false;
+      this.password = "";
+    },
+    logout() {
+      ElMessageBox.confirm("确定退出登录？", "提示", {
+        type: "warning",
+        confirmButtonText: "退出",
+        cancelButtonText: "取消",
+      })
+        .then(() => this.forceLogout())
+        .catch(() => {});
+    },
+    onUserCommand(cmd) {
+      if (cmd === "blog") window.open(BLOG_URL);
+      else if (cmd === "logout") this.logout();
+    },
 
-function renderTags() {
-  const box = $("tags-box");
-  box.querySelectorAll(".tag-chip").forEach((elx) => elx.remove());
-  for (const tag of state.tags) {
-    const chip = el("span", "tag-chip", tag);
-    const x = el("button", null, "×");
-    x.onclick = () => {
-      state.tags = state.tags.filter((t) => t !== tag);
-      renderTags();
-    };
-    chip.appendChild(x);
-    box.insertBefore(chip, $("f-tag"));
-  }
-}
-function addTag() {
-  const input = $("f-tag");
-  const t = input.value.trim().replace(/\s+/g, "");
-  if (t && !state.tags.includes(t)) {
-    state.tags.push(t);
-    renderTags();
-  }
-  input.value = "";
-}
+    /* ---------- 主题 ---------- */
+    setDark(v) {
+      this.dark = v;
+      applyDarkVar(v);
+    },
+    setPrimary(c) {
+      this.primary = c;
+      applyPrimaryVar(c);
+      localStorage.setItem("cms_primary", c);
+    },
+    setRadius(r) {
+      applyRadiusVar(r);
+      localStorage.setItem("cms_radius", String(r));
+    },
 
-function showImagePreview() {
-  const box = $("image-preview");
-  if (!state.image) {
-    box.classList.add("hidden");
-    return;
-  }
-  box.classList.remove("hidden");
-  box.querySelector("img").src = state.image;
-  box.querySelector(".img-path").textContent = state.image;
-}
+    /* ---------- 导航 / 多标签 ---------- */
+    toggleSidebar() {
+      if (this.isMobile) this.mobileOpen = !this.mobileOpen;
+      else this.collapsed = !this.collapsed;
+    },
+    handleMenuSelect(key) {
+      if (!this.tabs.find((t) => t.key === key)) {
+        this.tabs.push({ key, title: PAGE_NAMES[key] });
+      }
+      this.page = key;
+      this.mobileOpen = false;
+      this.doLoad(key);
+    },
+    closeTab(key) {
+      if (key === "dashboard") return;
+      const idx = this.tabs.findIndex((t) => t.key === key);
+      if (idx === -1) return;
+      this.tabs.splice(idx, 1);
+      if (this.page === key) {
+        const next = this.tabs[Math.max(0, idx - 1)];
+        this.page = next.key;
+        this.doLoad(next.key);
+      }
+    },
+    doLoad(page) {
+      if (page === "dashboard") this.loadDashboard();
+      else if (page === "posts") {
+        if (!this.editorView) this.loadArticles();
+      } else if (page === "shuoshuo") this.loadShuoshuo();
+      else if (page === "links") this.loadLinks();
+    },
 
-async function uploadShuoshuoImage(file) {
-  const msg = $("editor-msg");
-  msg.textContent = `正在上传 ${file.name}…`;
-  msg.className = "msg";
-  const { path } = await uploadImageFile(file, "shuoshuo");
-  state.image = path;
-  showImagePreview();
-  msg.textContent = "配图已上传";
-  msg.className = "msg ok";
-}
+    /* ---------- 工作台 ---------- */
+    async loadDashboard() {
+      this.dashboardLoading = true;
+      this.recentError = "";
+      try {
+        const [p, s, l] = await Promise.all([this.api("/api/posts"), this.api("/api/shuoshuo"), this.api("/api/links")]);
+        this.stats = {
+          posts: p.posts.length,
+          drafts: p.posts.filter((x) => x.draft).length,
+          shuoshuo: s.posts.length,
+          links: l.links.filter((x) => x.enabled).length,
+        };
+        this.recentPosts = p.posts.slice(0, 5);
+        if (!this.linksDirty) this.links = l.links;
+      } catch (e) {
+        this.recentError = e.message;
+      } finally {
+        this.dashboardLoading = false;
+      }
+    },
+    displayDate,
+    postRowMeta(row) {
+      return [
+        row.published && String(row.published).slice(0, 10),
+        row.category || "",
+        (row.tags || []).map((t) => `#${t}`).join(" "),
+      ]
+        .filter(Boolean)
+        .join(" · ");
+    },
 
-function resetEditor() {
-  state.tags = [];
-  state.image = "";
-  state.editingFile = null;
-  $("f-content").value = "";
-  $("f-date").value = localNow();
-  $("f-tag").value = "";
-  renderTags();
-  showImagePreview();
-  $("publish-btn").textContent = "发布";
-  $("cancel-btn").classList.add("hidden");
-  $("editor-title").textContent = "发布说说";
-  $("editor-msg").textContent = "";
-  $("editor-msg").className = "msg";
-  document.querySelectorAll(".post-card.editing").forEach((elx) => elx.classList.remove("editing"));
-}
+    /* ---------- 文章：列表 ---------- */
+    async loadArticles() {
+      this.postsLoading = true;
+      try {
+        const { posts } = await this.api("/api/posts");
+        this.posts = posts;
+      } catch (e) {
+        ElMessage.error(e.message);
+      } finally {
+        this.postsLoading = false;
+      }
+    },
+    async deletePost(row) {
+      try {
+        await ElMessageBox.confirm(
+          `确定删除文章「${row.title}」？（${row.file}）此操作不可恢复`,
+          "删除确认",
+          { type: "warning", confirmButtonText: "删除", cancelButtonText: "取消", confirmButtonClass: "el-button--danger" }
+        );
+      } catch {
+        return;
+      }
+      try {
+        await this.api(`/api/posts/${encodeURIComponent(row.file)}`, { method: "DELETE" });
+        ElMessage.success("已删除");
+        await this.loadArticles();
+      } catch (e) {
+        ElMessage.error(e.message);
+      }
+    },
 
-function fillEditor(post) {
-  resetEditor();
-  state.editingFile = post.file;
-  state.tags = [...(post.tags || [])];
-  state.image = post.image || "";
-  $("f-content").value = post.content || "";
-  $("f-date").value = toDatetimeLocal(post.date);
-  renderTags();
-  showImagePreview();
-  $("publish-btn").textContent = "保存修改";
-  $("cancel-btn").classList.remove("hidden");
-  $("editor-title").textContent = `编辑：${post.file}`;
-  const card = document.querySelector(`[data-file="${post.file}"]`);
-  if (card) {
-    card.classList.add("editing");
-    card.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-  window.scrollTo({ top: 0, behavior: "smooth" });
-}
-
-async function publish() {
-  const btn = $("publish-btn");
-  const msg = $("editor-msg");
-  const content = $("f-content").value.trim();
-  if (!content) {
-    msg.textContent = "内容不能为空";
-    msg.className = "msg";
-    return;
-  }
-  const date = $("f-date").value || localNow();
-  btn.disabled = true;
-  msg.textContent = state.editingFile ? "正在保存…" : "正在发布…";
-  msg.className = "msg";
-  try {
-    const payload = JSON.stringify({ content, tags: state.tags, image: state.image, date });
-    if (state.editingFile) {
-      await api(`/api/shuoshuo/${encodeURIComponent(state.editingFile)}`, {
-        method: "PUT",
-        body: payload,
+    /* ---------- 文章：编辑器 ---------- */
+    resetPostEditor() {
+      this.editingPostFile = null;
+      Object.assign(this.pf, {
+        title: "", slug: "", published: today(), updated: "", category: "",
+        description: "", image: "", draft: false, pinned: false, comment: true, content: "",
       });
-      msg.textContent = "已保存，博客将在 1-3 分钟内自动更新";
-    } else {
-      await api("/api/shuoshuo", { method: "POST", body: payload });
-      msg.textContent = "发布成功，博客将在 1-3 分钟内自动更新";
+      this.pTags = [];
+      this.pTagInput = "";
+    },
+    async openPostEditor(file) {
+      this.handleMenuSelect("posts");
+      this.resetPostEditor();
+      if (file) {
+        try {
+          const a = await this.api(`/api/posts/${encodeURIComponent(file)}`);
+          this.editingPostFile = a.file;
+          Object.assign(this.pf, {
+            title: a.title || "",
+            slug: a.file.replace(/\.md$/, ""),
+            published: String(a.published || today()).slice(0, 10),
+            updated: today(),
+            category: a.category || "",
+            description: a.description || "",
+            image: a.image || "",
+            draft: !!a.draft,
+            pinned: !!a.pinned,
+            comment: a.comment !== false,
+            content: a.content || "",
+          });
+          this.pTags = [...(a.tags || [])];
+        } catch (e) {
+          ElMessage.error(e.message);
+          return;
+        }
+      }
+      this.editorView = true;
+      this.$nextTick(() => window.scrollTo({ top: 0 }));
+    },
+    backToPostList() {
+      this.editorView = false;
+      this.loadArticles();
+    },
+    removePTag(t) {
+      this.pTags = this.pTags.filter((x) => x !== t);
+    },
+    addPTag() {
+      const t = this.pTagInput.trim().replace(/\s+/g, "");
+      if (t && !this.pTags.includes(t)) this.pTags.push(t);
+      this.pTagInput = "";
+    },
+
+    /* Markdown 编辑辅助 */
+    getTextarea() {
+      const ref = this.$refs.pContent;
+      if (!ref) return null;
+      return ref.textarea || (ref.$el ? ref.$el.querySelector("textarea") : null);
+    },
+    async mdWrap(before, after, placeholder) {
+      const ta = this.getTextarea();
+      if (!ta) return;
+      const s = ta.selectionStart ?? this.pf.content.length;
+      const e = ta.selectionEnd ?? s;
+      const sel = this.pf.content.slice(s, e) || placeholder;
+      this.pf.content = this.pf.content.slice(0, s) + before + sel + after + this.pf.content.slice(e);
+      await this.$nextTick();
+      ta.focus();
+      const ns = s + before.length;
+      ta.setSelectionRange(ns, ns + sel.length);
+    },
+    async mdLinePrefix(prefix) {
+      const ta = this.getTextarea();
+      if (!ta) return;
+      const s = ta.selectionStart ?? 0;
+      const lineStart = this.pf.content.lastIndexOf("\n", s - 1) + 1;
+      this.pf.content = this.pf.content.slice(0, lineStart) + prefix + this.pf.content.slice(lineStart);
+      await this.$nextTick();
+      ta.focus();
+      ta.setSelectionRange(lineStart + prefix.length, lineStart + prefix.length);
+    },
+    async insertAtCursor(text) {
+      const ta = this.getTextarea();
+      if (!ta) {
+        this.pf.content += text;
+        return;
+      }
+      const s = ta.selectionStart ?? this.pf.content.length;
+      const e = ta.selectionEnd ?? s;
+      this.pf.content = this.pf.content.slice(0, s) + text + this.pf.content.slice(e);
+      await this.$nextTick();
+      const p = s + text.length;
+      ta.focus();
+      ta.setSelectionRange(p, p);
+    },
+
+    /* 上传 */
+    async uploadImageFile(file, dir) {
+      const data = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
+        reader.onerror = () => reject(new Error("读取图片失败"));
+        reader.readAsDataURL(file);
+      });
+      return this.api("/api/upload", {
+        method: "POST",
+        body: JSON.stringify({ filename: file.name, data, dir }),
+      });
+    },
+    async onInsertImage(e) {
+      const file = e.target.files[0];
+      e.target.value = "";
+      if (!file) return;
+      try {
+        const { path } = await this.uploadImageFile(file, "post");
+        await this.insertAtCursor(`![](${path})`);
+        ElMessage.success("图片已上传并插入正文");
+      } catch (err) {
+        ElMessage.error(err.message);
+      }
+    },
+    async onCoverUpload(e) {
+      const file = e.target.files[0];
+      e.target.value = "";
+      if (!file) return;
+      try {
+        const { path } = await this.uploadImageFile(file, "post");
+        this.pf.image = path;
+        ElMessage.success("封面已上传");
+      } catch (err) {
+        ElMessage.error(err.message);
+      }
+    },
+    async onShuoImage(e) {
+      const file = e.target.files[0];
+      e.target.value = "";
+      if (!file) return;
+      try {
+        const { path } = await this.uploadImageFile(file, "shuoshuo");
+        this.sf.image = path;
+        ElMessage.success("配图已上传");
+      } catch (err) {
+        ElMessage.error(err.message);
+      }
+    },
+
+    /* ---------- 文章：保存 ---------- */
+    async savePost() {
+      const title = this.pf.title.trim();
+      const content = this.pf.content.trim();
+      if (!title) return ElMessage.warning("标题不能为空");
+      if (!content) return ElMessage.warning("正文不能为空");
+      const payload = {
+        title,
+        slug: this.pf.slug.trim(),
+        published: this.pf.published || today(),
+        updated: this.pf.updated || "",
+        category: this.pf.category.trim(),
+        tags: this.pTags,
+        description: this.pf.description.trim(),
+        image: this.pf.image,
+        draft: this.pf.draft,
+        pinned: this.pf.pinned,
+        comment: this.pf.comment,
+        content,
+      };
+      this.savingPost = true;
+      try {
+        if (this.editingPostFile) {
+          await this.api(`/api/posts/${encodeURIComponent(this.editingPostFile)}`, {
+            method: "PUT",
+            body: JSON.stringify(payload),
+          });
+        } else {
+          const { file } = await this.api("/api/posts", { method: "POST", body: JSON.stringify(payload) });
+          this.editingPostFile = file;
+        }
+        ElMessage.success("已保存，博客将在 1-3 分钟内自动更新");
+        setTimeout(() => this.backToPostList(), 800);
+      } catch (e) {
+        ElMessage.error(e.message);
+      } finally {
+        this.savingPost = false;
+      }
+    },
+
+    /* ---------- 说说 ---------- */
+    async loadShuoshuo() {
+      this.shuoLoading = true;
+      this.shuoError = "";
+      try {
+        const { posts } = await this.api("/api/shuoshuo");
+        this.shuoshuoList = posts;
+      } catch (e) {
+        this.shuoError = e.message;
+      } finally {
+        this.shuoLoading = false;
+      }
+    },
+    resetShuoEditor() {
+      this.editingShuoFile = null;
+      this.sf.content = "";
+      this.sf.image = "";
+      this.sf.date = localNow();
+      this.sTags = [];
+      this.sTagInput = "";
+    },
+    fillShuoEditor(p) {
+      this.resetShuoEditor();
+      this.editingShuoFile = p.file;
+      this.sf.content = p.content || "";
+      this.sf.image = p.image || "";
+      this.sf.date = toDatetimeLocal(p.date);
+      this.sTags = [...(p.tags || [])];
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    },
+    removeSTag(t) {
+      this.sTags = this.sTags.filter((x) => x !== t);
+    },
+    addSTag() {
+      const t = this.sTagInput.trim().replace(/\s+/g, "");
+      if (t && !this.sTags.includes(t)) this.sTags.push(t);
+      this.sTagInput = "";
+    },
+    async publishShuoshuo() {
+      const content = this.sf.content.trim();
+      if (!content) return ElMessage.warning("内容不能为空");
+      const date = this.sf.date || localNow();
+      this.publishing = true;
+      try {
+        const payload = JSON.stringify({ content, tags: this.sTags, image: this.sf.image, date });
+        if (this.editingShuoFile) {
+          await this.api(`/api/shuoshuo/${encodeURIComponent(this.editingShuoFile)}`, { method: "PUT", body: payload });
+          ElMessage.success("已保存，博客将在 1-3 分钟内自动更新");
+        } else {
+          await this.api("/api/shuoshuo", { method: "POST", body: payload });
+          ElMessage.success("发布成功，博客将在 1-3 分钟内自动更新");
+        }
+        this.resetShuoEditor();
+        await this.loadShuoshuo();
+      } catch (e) {
+        ElMessage.error(e.message);
+      } finally {
+        this.publishing = false;
+      }
+    },
+    async deleteShuoshuo(p) {
+      try {
+        await ElMessageBox.confirm(`确定删除这条说说？（${p.file}）`, "删除确认", {
+          type: "warning",
+          confirmButtonText: "删除",
+          cancelButtonText: "取消",
+          confirmButtonClass: "el-button--danger",
+        });
+      } catch {
+        return;
+      }
+      try {
+        await this.api(`/api/shuoshuo/${encodeURIComponent(p.file)}`, { method: "DELETE" });
+        if (this.editingShuoFile === p.file) this.resetShuoEditor();
+        ElMessage.success("已删除");
+        await this.loadShuoshuo();
+      } catch (e) {
+        ElMessage.error(e.message);
+      }
+    },
+
+    /* ---------- 友链 ---------- */
+    async loadLinks() {
+      this.linksLoading = true;
+      this.linksError = "";
+      try {
+        const { links } = await this.api("/api/links");
+        this.links = links;
+        this.linksDirty = false;
+      } catch (e) {
+        this.linksError = e.message;
+      } finally {
+        this.linksLoading = false;
+      }
+    },
+    resetLinkForm() {
+      this.editingLinkIndex = null;
+      Object.assign(this.lf, { title: "", siteurl: "", imgurl: "", tags: "", desc: "", weight: 0, enabled: true });
+    },
+    fillLinkForm(link, index) {
+      this.resetLinkForm();
+      this.editingLinkIndex = index;
+      Object.assign(this.lf, {
+        title: link.title,
+        siteurl: link.siteurl,
+        imgurl: link.imgurl || "",
+        tags: (link.tags || []).join(", "),
+        desc: link.desc || "",
+        weight: link.weight ?? 0,
+        enabled: link.enabled,
+      });
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    },
+    submitLinkForm() {
+      const title = this.lf.title.trim();
+      const siteurl = this.lf.siteurl.trim();
+      if (!title) return ElMessage.warning("友链名称不能为空");
+      if (!/^https?:\/\/.+/.test(siteurl)) return ElMessage.warning("站点地址必须以 http:// 或 https:// 开头");
+      const link = {
+        title,
+        siteurl,
+        imgurl: this.lf.imgurl.trim(),
+        tags: this.lf.tags.split(/[,，]/).map((t) => t.trim()).filter(Boolean),
+        desc: this.lf.desc.trim(),
+        weight: Math.trunc(Number(this.lf.weight) || 0),
+        enabled: this.lf.enabled,
+      };
+      if (this.editingLinkIndex === null) this.links.push(link);
+      else this.links[this.editingLinkIndex] = link;
+      this.linksDirty = true;
+      this.resetLinkForm();
+      ElMessage.success("已加入列表，点击下方「保存全部更改」提交到 GitHub");
+    },
+    toggleLink(i) {
+      this.links[i].enabled = !this.links[i].enabled;
+      this.linksDirty = true;
+    },
+    async deleteLink(link, i) {
+      try {
+        await ElMessageBox.confirm(`确定删除友链「${link.title}」？保存后才会提交到 GitHub。`, "删除确认", {
+          type: "warning",
+          confirmButtonText: "删除",
+          cancelButtonText: "取消",
+          confirmButtonClass: "el-button--danger",
+        });
+      } catch {
+        return;
+      }
+      this.links.splice(i, 1);
+      this.linksDirty = true;
+      if (this.editingLinkIndex === i) this.resetLinkForm();
+    },
+    async saveLinks() {
+      this.savingLinks = true;
+      try {
+        await this.api("/api/links", { method: "PUT", body: JSON.stringify({ links: this.links }) });
+        this.linksDirty = false;
+        ElMessage.success("已保存，博客将在 1-3 分钟内自动更新");
+        await this.loadLinks();
+      } catch (e) {
+        ElMessage.error(e.message);
+      } finally {
+        this.savingLinks = false;
+      }
+    },
+
+    onResize() {
+      this.isMobile = window.innerWidth < 768;
+      if (!this.isMobile) this.mobileOpen = false;
+    },
+  },
+
+  mounted() {
+    this.onResize();
+    window.addEventListener("resize", this.onResize);
+    if (this.token) {
+      // 有令牌先进入主界面，401 会自动退回登录
+      this.loggedIn = true;
+      this.handleMenuSelect("dashboard");
     }
-    msg.className = "msg ok";
-    resetEditor();
-    await loadShuoshuo();
-  } catch (e) {
-    msg.textContent = e.message;
-    msg.className = "msg";
-  } finally {
-    btn.disabled = false;
-  }
-}
-
-async function loadShuoshuo() {
-  const list = $("posts-list");
-  const msg = $("list-msg");
-  msg.textContent = "";
-  list.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div>';
-  try {
-    const { posts } = await api("/api/shuoshuo");
-    list.innerHTML = "";
-    if (!posts.length) {
-      msg.textContent = "还没有说说，发布第一条吧";
-      return;
-    }
-    for (const post of posts) list.appendChild(renderShuoshuoCard(post));
-  } catch (e) {
-    list.innerHTML = "";
-    msg.textContent = e.message;
-  }
-}
-
-function renderShuoshuoCard(post) {
-  const card = el("div", "card post-card");
-  card.dataset.file = post.file;
-
-  const head = el("div", "post-head");
-  const date = el("span", "post-date", `${displayDate(post.date)} · ${post.file}`);
-  const tags = el("div", "post-tags");
-  for (const t of post.tags || []) tags.appendChild(el("span", "post-tag", t));
-  head.append(date, tags);
-
-  const content = el("p", "post-content", post.content || "");
-  card.append(head, content);
-
-  if (post.image) {
-    const img = document.createElement("img");
-    img.className = "post-image";
-    img.loading = "lazy";
-    img.src = post.image;
-    img.alt = "配图";
-    card.appendChild(img);
-  }
-
-  const actions = el("div", "post-actions");
-  const editBtn = el("button", "btn ghost small", "编辑");
-  editBtn.onclick = () => fillEditor(post);
-  const delBtn = el("button", "btn danger ghost small", "删除");
-  delBtn.onclick = async () => {
-    if (!confirm(`确定删除这条说说？（${post.file}）`)) return;
-    delBtn.disabled = true;
-    try {
-      await api(`/api/shuoshuo/${encodeURIComponent(post.file)}`, { method: "DELETE" });
-      await loadShuoshuo();
-    } catch (e) {
-      alert(e.message);
-      delBtn.disabled = false;
-    }
-  };
-  actions.append(editBtn, delBtn);
-  card.appendChild(actions);
-  return card;
-}
-
-/* ---------- 友链管理 ---------- */
-
-async function loadLinks() {
-  const list = $("links-list");
-  const msg = $("links-msg");
-  msg.textContent = "";
-  list.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div>';
-  try {
-    const { links } = await api("/api/links");
-    state.links = links;
-    state.linksLoaded = true;
-    state.linksDirty = false;
-    list.innerHTML = "";
-    renderLinks();
-  } catch (e) {
-    list.innerHTML = "";
-    msg.textContent = e.message;
-  }
-}
-
-function renderLinks() {
-  const list = $("links-list");
-  list.innerHTML = "";
-  const enabledCount = state.links.filter((l) => l.enabled).length;
-  $("links-count").textContent = `共 ${state.links.length} 条 · 启用 ${enabledCount} 条${state.linksDirty ? " · 有未保存修改" : ""}`;
-  $("links-save").classList.toggle("attention", state.linksDirty);
-  if (!state.links.length) {
-    $("links-msg").textContent = "还没有友链，在上方添加吧";
-    return;
-  }
-  $("links-msg").textContent = "";
-  state.links.forEach((link, i) => list.appendChild(renderLink(link, i)));
-}
-
-function renderLink(link, index) {
-  const card = el("div", "card link-card" + (link.enabled ? "" : " link-disabled"));
-
-  const img = document.createElement("img");
-  img.className = "link-avatar";
-  img.loading = "lazy";
-  img.src = link.imgurl || "";
-  img.alt = link.title;
-  img.onerror = () => img.remove();
-
-  const info = el("div", "link-info");
-  const head = el("div", "link-head");
-  head.append(el("span", "link-title", link.title));
-  head.appendChild(el("span", "link-badge " + (link.enabled ? "on" : "off"), link.enabled ? "启用" : "停用"));
-  const desc = el("p", "link-desc", link.desc || "");
-  const meta = el("div", "link-meta");
-  for (const t of link.tags || []) meta.appendChild(el("span", "post-tag", t));
-  meta.appendChild(el("span", "link-url", link.siteurl));
-  info.append(head, desc, meta);
-
-  const actions = el("div", "post-actions link-actions");
-  const editBtn = el("button", "btn ghost small", "编辑");
-  editBtn.onclick = () => fillLinkForm(link, index);
-  const toggleBtn = el("button", "btn ghost small", link.enabled ? "停用" : "启用");
-  toggleBtn.onclick = () => {
-    state.links[index].enabled = !link.enabled;
-    state.linksDirty = true;
-    renderLinks();
-  };
-  const delBtn = el("button", "btn danger ghost small", "删除");
-  delBtn.onclick = () => {
-    if (!confirm(`确定删除友链「${link.title}」？保存后才会提交到 GitHub。`)) return;
-    state.links.splice(index, 1);
-    state.linksDirty = true;
-    if (state.editingLinkIndex === index) resetLinkForm();
-    renderLinks();
-  };
-  actions.append(editBtn, toggleBtn, delBtn);
-
-  card.append(img, info, actions);
-  return card;
-}
-
-function resetLinkForm() {
-  state.editingLinkIndex = null;
-  $("lf-title").value = "";
-  $("lf-siteurl").value = "";
-  $("lf-imgurl").value = "";
-  $("lf-tags").value = "";
-  $("lf-desc").value = "";
-  $("lf-weight").value = "0";
-  $("lf-enabled").checked = true;
-  $("lf-add").textContent = "添加到列表";
-  $("lf-cancel").classList.add("hidden");
-  $("link-editor-title").textContent = "添加友链";
-  $("lf-editor-msg").textContent = "";
-  $("lf-editor-msg").className = "msg";
-}
-
-function fillLinkForm(link, index) {
-  resetLinkForm();
-  state.editingLinkIndex = index;
-  $("lf-title").value = link.title;
-  $("lf-siteurl").value = link.siteurl;
-  $("lf-imgurl").value = link.imgurl || "";
-  $("lf-tags").value = (link.tags || []).join(", ");
-  $("lf-desc").value = link.desc || "";
-  $("lf-weight").value = String(link.weight ?? 0);
-  $("lf-enabled").checked = link.enabled;
-  $("lf-add").textContent = "更新到列表";
-  $("lf-cancel").classList.remove("hidden");
-  $("link-editor-title").textContent = `编辑：${link.title}`;
-  window.scrollTo({ top: 0, behavior: "smooth" });
-}
-
-function readLinkForm() {
-  const msg = $("lf-editor-msg");
-  const title = $("lf-title").value.trim();
-  const siteurl = $("lf-siteurl").value.trim();
-  if (!title) {
-    msg.textContent = "友链名称不能为空";
-    return null;
-  }
-  if (!/^https?:\/\/.+/.test(siteurl)) {
-    msg.textContent = "站点地址必须以 http:// 或 https:// 开头";
-    return null;
-  }
-  return {
-    title,
-    siteurl,
-    imgurl: $("lf-imgurl").value.trim(),
-    tags: $("lf-tags").value
-      .split(/[,，]/)
-      .map((t) => t.trim())
-      .filter(Boolean),
-    desc: $("lf-desc").value.trim(),
-    weight: Math.trunc(Number($("lf-weight").value) || 0),
-    enabled: $("lf-enabled").checked,
-  };
-}
-
-async function saveLinks() {
-  const btn = $("links-save");
-  const msg = $("links-msg");
-  btn.disabled = true;
-  msg.textContent = "正在保存…";
-  try {
-    await api("/api/links", { method: "PUT", body: JSON.stringify({ links: state.links }) });
-    state.linksDirty = false;
-    msg.textContent = "已保存，博客将在 1-3 分钟内自动更新";
-    msg.className = "msg ok center-text";
-    await loadLinks();
-  } catch (e) {
-    msg.textContent = e.message;
-    msg.className = "msg center-text";
-  } finally {
-    btn.disabled = false;
-  }
-}
-
-function submitLinkForm() {
-  const link = readLinkForm();
-  if (!link) return;
-  if (state.editingLinkIndex === null) {
-    state.links.push(link);
-  } else {
-    state.links[state.editingLinkIndex] = link;
-  }
-  state.linksDirty = true;
-  resetLinkForm();
-  renderLinks();
-  $("lf-editor-msg").textContent = "已加入列表，点击下方「保存全部更改」提交到 GitHub";
-  $("lf-editor-msg").className = "msg ok";
-}
-
-/* ---------- 事件绑定 ---------- */
-
-$("login-btn").onclick = login;
-$("login-password").addEventListener("keydown", (e) => e.key === "Enter" && login());
-$("logout-btn").onclick = () => logout();
-$("theme-toggle").onclick = () => applyTheme(!document.documentElement.classList.contains("dark"));
-
-/* 侧边栏 */
-document.querySelectorAll(".menu-item").forEach((btn) => {
-  btn.onclick = () => switchPage(btn.dataset.page);
-});
-$("menu-toggle").onclick = () => {
-  const open = $("sidebar").classList.toggle("open");
-  $("sidebar-mask").classList.toggle("hidden", !open);
+  },
 };
-$("sidebar-mask").onclick = closeSidebar;
-document.querySelectorAll("[data-goto]").forEach((btn) => {
-  btn.onclick = () => switchPage(btn.dataset.goto);
-});
 
-/* 文章 */
-$("new-post-btn").onclick = () => openPostEditor(null);
-$("p-back").onclick = backToPostList;
-$("p-save").onclick = savePost;
-$("p-tag").addEventListener("keydown", (e) => {
-  if (e.key === "Enter") {
-    e.preventDefault();
-    addPTag();
-  }
-});
-$("p-content").addEventListener("input", updateWordcount);
-$("p-draft").addEventListener("change", updateSaveLabel);
-$("p-image").addEventListener("change", async (e) => {
-  const file = e.target.files[0];
-  e.target.value = "";
-  if (!file) return;
-  const msg = $("p-msg");
-  msg.textContent = `正在上传 ${file.name}…`;
-  msg.className = "msg";
-  try {
-    const { path } = await uploadImageFile(file, "post");
-    insertAtCursor($("p-content"), `![](${path})`);
-    msg.textContent = "图片已上传并插入正文";
-    msg.className = "msg ok";
-  } catch (err) {
-    msg.textContent = err.message;
-    msg.className = "msg";
-  }
-});
-$("p-cover").addEventListener("change", async (e) => {
-  const file = e.target.files[0];
-  e.target.value = "";
-  if (!file) return;
-  const msg = $("p-msg");
-  msg.textContent = `正在上传 ${file.name}…`;
-  msg.className = "msg";
-  try {
-    const { path } = await uploadImageFile(file, "post");
-    state.cover = path;
-    showCoverPreview();
-    msg.textContent = "封面已上传";
-    msg.className = "msg ok";
-  } catch (err) {
-    msg.textContent = err.message;
-    msg.className = "msg";
-  }
-});
-$("p-cover-remove").onclick = () => {
-  state.cover = "";
-  showCoverPreview();
-};
-document.querySelectorAll(".md-toolbar [data-md]").forEach((btn) => {
-  btn.onclick = () => {
-    const type = btn.dataset.md;
-    if (type === "bold") mdWrap("**", "**", "加粗文字");
-    else if (type === "italic") mdWrap("*", "*", "斜体文字");
-    else if (type === "h2") mdLinePrefix("## ");
-    else if (type === "h3") mdLinePrefix("### ");
-    else if (type === "quote") mdLinePrefix("> ");
-    else if (type === "code") mdWrap("`", "`", "code");
-    else if (type === "link") mdWrap("[", "](https://)", "链接文字");
-  };
-});
-
-/* 说说 */
-$("f-tag").addEventListener("keydown", (e) => {
-  if (e.key === "Enter") {
-    e.preventDefault();
-    addTag();
-  }
-});
-$("f-image").addEventListener("change", async (e) => {
-  const file = e.target.files[0];
-  e.target.value = "";
-  if (!file) return;
-  try {
-    await uploadShuoshuoImage(file);
-  } catch (err) {
-    const msg = $("editor-msg");
-    msg.textContent = err.message;
-    msg.className = "msg";
-  }
-});
-$("img-remove").onclick = () => {
-  state.image = "";
-  showImagePreview();
-};
-$("publish-btn").onclick = publish;
-$("cancel-btn").onclick = resetEditor;
-
-/* 友链 */
-$("lf-add").onclick = submitLinkForm;
-$("lf-cancel").onclick = resetLinkForm;
-$("links-save").onclick = saveLinks;
-
-/* ---------- 启动 ---------- */
-
-if (state.token) {
-  // 有令牌先尝试进入主界面，401 会自动退回登录
-  showMain();
-} else {
-  showLogin();
+const app = createApp(App);
+app.use(ElementPlus, { locale: ElementPlusLocaleZhCn });
+// 图标以 Epi 前缀注册：DOM 模板里用 <epi-xxx> 引用，避免与原生标签冲突
+for (const [name, comp] of Object.entries(ElementPlusIconsVue)) {
+  app.component("Epi" + name, comp);
 }
+app.mount("#app");
