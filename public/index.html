@@ -7,7 +7,7 @@
     <title>Firefly CMS</title>
     <link rel="stylesheet" href="/vendor/element-plus.css" />
     <link rel="stylesheet" href="/vendor/element-plus-dark.css" />
-    <link rel="stylesheet" href="/style.css?v=2.3" />
+    <link rel="stylesheet" href="/style.css?v=2.4" />
     <script>
       // 提前应用主题（默认暗色），避免闪烁
       (() => {
@@ -46,7 +46,7 @@
           <p class="login-tip">输入访问密码登录，保存后自动提交到 GitHub 并触发博客部署。</p>
           <el-input v-model="password" type="password" size="large" placeholder="访问密码" show-password @keyup.enter="login"></el-input>
           <el-button type="primary" size="large" class="login-btn" :loading="loginLoading" @click="login">登 录</el-button>
-          <p class="login-foot">Firefly CMS · Art Design Pro 风格 · v2.3</p>
+          <p class="login-foot">Firefly CMS · Art Design Pro 风格 · v2.4</p>
         </div>
       </div>
 
@@ -84,7 +84,7 @@
           </el-menu>
           <div v-show="!menuCollapsed" class="sidebar-foot">
             <a href="https://xane.eu.cc" target="_blank" rel="noopener"><el-icon><epi-position></epi-position></el-icon>前往博客</a>
-            <span class="ver">v2.3</span>
+            <span class="ver">v2.4</span>
           </div>
         </aside>
 
@@ -483,6 +483,6 @@
     <script src="/vendor/element-plus.full.min.js"></script>
     <script src="/vendor/zh-cn.min.js"></script>
     <script src="/vendor/element-icons.iife.min.js"></script>
-    <script src="/app.js?v=2.3"></script>
+    <script src="/app.js?v=2.4"></script>
   </body>
 </html>

@@ -173,14 +173,27 @@ const App = {
   methods: {
     /* ---------- API ---------- */
     async api(path, options = {}) {
-      const res = await fetch(path, {
-        ...options,
-        headers: {
-          "content-type": "application/json",
-          ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
-          ...(options.headers || {}),
-        },
-      });
+      // 超时保护：手机弱网/网络切换时 fetch 可能永远挂起，导致 loading 遮罩卡死
+      const { timeout = 25000, ...rest } = options;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeout);
+      let res;
+      try {
+        res = await fetch(path, {
+          ...rest,
+          signal: controller.signal,
+          headers: {
+            "content-type": "application/json",
+            ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
+            ...(rest.headers || {}),
+          },
+        });
+      } catch (e) {
+        if (e.name === "AbortError") throw new Error("请求超时，请检查网络后重试");
+        throw new Error("网络连接失败，请检查网络后重试");
+      } finally {
+        clearTimeout(timer);
+      }
       const data = await res.json().catch(() => ({}));
       if (res.status === 401 && path !== "/api/login") {
         this.forceLogout();
@@ -449,6 +462,7 @@ const App = {
       return this.api("/api/imgbed/upload", {
         method: "POST",
         body: JSON.stringify({ filename: file.name, data, dir }),
+        timeout: 90000, // 大图经代理转图床较慢，放宽到 90 秒
       });
     },
     // 批量上传图片到图床，返回外链数组
