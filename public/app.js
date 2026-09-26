@@ -6,6 +6,10 @@ const state = {
   tags: [],
   image: "", // 上传后的博客路径，如 /shuoshuo/images/xx.png
   editingFile: null, // 编辑模式下的文件名
+  links: [], // 友链列表（本地草稿，保存时全量提交）
+  linksLoaded: false,
+  linksDirty: false,
+  editingLinkIndex: null, // 友链编辑模式下的下标
 };
 
 /* ---------- API ---------- */
@@ -289,6 +293,209 @@ function renderPost(post) {
   return card;
 }
 
+/* ---------- 标签页切换 ---------- */
+
+function switchTab(name) {
+  document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
+  $("tab-posts").classList.toggle("hidden", name !== "posts");
+  $("tab-links").classList.toggle("hidden", name !== "links");
+  if (name === "links" && !state.linksLoaded) loadLinks();
+}
+
+/* ---------- 友链管理 ---------- */
+
+async function loadLinks() {
+  const list = $("links-list");
+  const msg = $("links-msg");
+  msg.textContent = "";
+  list.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div>';
+  try {
+    const { links } = await api("/api/links");
+    state.links = links;
+    state.linksLoaded = true;
+    state.linksDirty = false;
+    list.innerHTML = "";
+    renderLinks();
+  } catch (e) {
+    list.innerHTML = "";
+    msg.textContent = e.message;
+  }
+}
+
+function renderLinks() {
+  const list = $("links-list");
+  list.innerHTML = "";
+  const enabledCount = state.links.filter((l) => l.enabled).length;
+  $("links-count").textContent = `共 ${state.links.length} 条 · 启用 ${enabledCount} 条${state.linksDirty ? " · 有未保存修改" : ""}`;
+  $("links-save").classList.toggle("attention", state.linksDirty);
+  if (!state.links.length) {
+    $("links-msg").textContent = "还没有友链，在上方添加吧";
+    return;
+  }
+  $("links-msg").textContent = "";
+  state.links.forEach((link, i) => list.appendChild(renderLink(link, i)));
+}
+
+function renderLink(link, index) {
+  const card = document.createElement("div");
+  card.className = "card link-card" + (link.enabled ? "" : " link-disabled");
+
+  const img = document.createElement("img");
+  img.className = "link-avatar";
+  img.loading = "lazy";
+  img.src = link.imgurl || "";
+  img.alt = link.title;
+  img.onerror = () => img.remove();
+
+  const info = document.createElement("div");
+  info.className = "link-info";
+  const head = document.createElement("div");
+  head.className = "link-head";
+  const name = document.createElement("span");
+  name.className = "link-title";
+  name.textContent = link.title;
+  const badge = document.createElement("span");
+  badge.className = "link-badge " + (link.enabled ? "on" : "off");
+  badge.textContent = link.enabled ? "启用" : "停用";
+  head.append(name, badge);
+  const desc = document.createElement("p");
+  desc.className = "link-desc";
+  desc.textContent = link.desc || "";
+  const meta = document.createElement("div");
+  meta.className = "link-meta";
+  const url = document.createElement("span");
+  url.textContent = link.siteurl;
+  for (const t of link.tags || []) {
+    const chip = document.createElement("span");
+    chip.className = "post-tag";
+    chip.textContent = t;
+    meta.append(chip);
+  }
+  meta.append(url);
+  info.append(head, desc, meta);
+
+  const actions = document.createElement("div");
+  actions.className = "post-actions link-actions";
+  const editBtn = document.createElement("button");
+  editBtn.className = "btn ghost small";
+  editBtn.textContent = "编辑";
+  editBtn.onclick = () => fillLinkForm(link, index);
+  const toggleBtn = document.createElement("button");
+  toggleBtn.className = "btn ghost small";
+  toggleBtn.textContent = link.enabled ? "停用" : "启用";
+  toggleBtn.onclick = () => {
+    state.links[index].enabled = !link.enabled;
+    state.linksDirty = true;
+    renderLinks();
+  };
+  const delBtn = document.createElement("button");
+  delBtn.className = "btn danger ghost small";
+  delBtn.textContent = "删除";
+  delBtn.onclick = () => {
+    if (!confirm(`确定删除友链「${link.title}」？保存后才会提交到 GitHub。`)) return;
+    state.links.splice(index, 1);
+    state.linksDirty = true;
+    if (state.editingLinkIndex === index) resetLinkForm();
+    renderLinks();
+  };
+  actions.append(editBtn, toggleBtn, delBtn);
+
+  card.append(img, info, actions);
+  return card;
+}
+
+function resetLinkForm() {
+  state.editingLinkIndex = null;
+  $("lf-title").value = "";
+  $("lf-siteurl").value = "";
+  $("lf-imgurl").value = "";
+  $("lf-tags").value = "";
+  $("lf-desc").value = "";
+  $("lf-weight").value = "0";
+  $("lf-enabled").checked = true;
+  $("lf-add").textContent = "添加到列表";
+  $("lf-cancel").classList.add("hidden");
+  $("link-editor-title").textContent = "添加友链";
+  $("lf-editor-msg").textContent = "";
+  $("lf-editor-msg").className = "msg";
+}
+
+function fillLinkForm(link, index) {
+  resetLinkForm();
+  state.editingLinkIndex = index;
+  $("lf-title").value = link.title;
+  $("lf-siteurl").value = link.siteurl;
+  $("lf-imgurl").value = link.imgurl || "";
+  $("lf-tags").value = (link.tags || []).join(", ");
+  $("lf-desc").value = link.desc || "";
+  $("lf-weight").value = String(link.weight ?? 0);
+  $("lf-enabled").checked = link.enabled;
+  $("lf-add").textContent = "更新到列表";
+  $("lf-cancel").classList.remove("hidden");
+  $("link-editor-title").textContent = `编辑：${link.title}`;
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function readLinkForm() {
+  const msg = $("lf-editor-msg");
+  const title = $("lf-title").value.trim();
+  const siteurl = $("lf-siteurl").value.trim();
+  if (!title) {
+    msg.textContent = "友链名称不能为空";
+    return null;
+  }
+  if (!/^https?:\/\/.+/.test(siteurl)) {
+    msg.textContent = "站点地址必须以 http:// 或 https:// 开头";
+    return null;
+  }
+  return {
+    title,
+    siteurl,
+    imgurl: $("lf-imgurl").value.trim(),
+    tags: $("lf-tags").value
+      .split(/[,，]/)
+      .map((t) => t.trim())
+      .filter(Boolean),
+    desc: $("lf-desc").value.trim(),
+    weight: Math.trunc(Number($("lf-weight").value) || 0),
+    enabled: $("lf-enabled").checked,
+  };
+}
+
+async function saveLinks() {
+  const btn = $("links-save");
+  const msg = $("links-msg");
+  btn.disabled = true;
+  msg.textContent = "正在保存…";
+  try {
+    await api("/api/links", { method: "PUT", body: JSON.stringify({ links: state.links }) });
+    state.linksDirty = false;
+    msg.textContent = "已保存，博客将在 1-3 分钟内自动更新";
+    msg.className = "msg ok center-text";
+    await loadLinks();
+  } catch (e) {
+    msg.textContent = e.message;
+    msg.className = "msg center-text";
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function submitLinkForm() {
+  const link = readLinkForm();
+  if (!link) return;
+  if (state.editingLinkIndex === null) {
+    state.links.push(link);
+  } else {
+    state.links[state.editingLinkIndex] = link;
+  }
+  state.linksDirty = true;
+  resetLinkForm();
+  renderLinks();
+  $("lf-editor-msg").textContent = "已加入列表，点击下方「保存全部更改」提交到 GitHub";
+  $("lf-editor-msg").className = "msg ok";
+}
+
 /* ---------- 工具 ---------- */
 
 // 当前时间，供 datetime-local 默认值（浏览器本地时区）
@@ -349,6 +556,14 @@ $("img-remove").onclick = () => {
 };
 $("publish-btn").onclick = publish;
 $("cancel-btn").onclick = resetEditor;
+
+/* 友链 */
+document.querySelectorAll(".tab").forEach((tab) => {
+  tab.onclick = () => switchTab(tab.dataset.tab);
+});
+$("lf-add").onclick = submitLinkForm;
+$("lf-cancel").onclick = resetLinkForm;
+$("links-save").onclick = saveLinks;
 
 /* ---------- 启动 ---------- */
 

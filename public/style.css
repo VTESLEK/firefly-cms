@@ -372,6 +372,193 @@ input[type="datetime-local"] {
   }
 }
 
+/* ---------- 标签页 ---------- */
+.tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 16px;
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  padding: 4px;
+  width: fit-content;
+  backdrop-filter: blur(10px);
+}
+.tab {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 7px 22px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.tab:hover {
+  color: var(--accent);
+}
+.tab.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* ---------- 友链 ---------- */
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 12px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.field.span-2 {
+  grid-column: span 2;
+}
+.field-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+.field input[type="text"],
+.field input[type="url"],
+.field input[type="number"] {
+  width: 100%;
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--text);
+  border-radius: 12px;
+  padding: 9px 13px;
+  font: inherit;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.field input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.check-field {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  justify-content: flex-end;
+  padding-bottom: 6px;
+}
+.check-field .field-label {
+  font-size: 14px;
+  color: var(--text);
+}
+.check-field input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.links-toolbar {
+  margin-bottom: 14px;
+}
+.links-toolbar .muted {
+  font-variant-numeric: tabular-nums;
+}
+.btn.attention {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.links-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.link-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px;
+}
+.link-card.link-disabled {
+  opacity: 0.55;
+}
+.link-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  object-fit: cover;
+  border: 1px solid var(--card-border);
+  flex-shrink: 0;
+  background: var(--accent-soft);
+}
+.link-info {
+  flex: 1;
+  min-width: 0;
+}
+.link-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.link-title {
+  font-weight: 700;
+  font-size: 15px;
+}
+.link-badge {
+  font-size: 11px;
+  border-radius: 999px;
+  padding: 1px 9px;
+}
+.link-badge.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.link-badge.off {
+  background: rgba(120, 120, 140, 0.14);
+  color: var(--muted);
+}
+.link-desc {
+  margin: 2px 0 4px;
+  font-size: 13px;
+  color: var(--text);
+  opacity: 0.85;
+  word-break: break-word;
+}
+.link-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--muted);
+  word-break: break-all;
+}
+.link-actions {
+  border-top: none;
+  padding-top: 0;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+@media (max-width: 560px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+  .field.span-2 {
+    grid-column: span 1;
+  }
+  .link-card {
+    flex-wrap: wrap;
+  }
+  .link-actions {
+    flex-direction: row;
+    width: 100%;
+    justify-content: flex-end;
+    border-top: 1px solid var(--card-border);
+    padding-top: 8px;
+  }
+}
+
 @media (max-width: 560px) {
   .actions-row input[type="datetime-local"] {
     width: 100%;

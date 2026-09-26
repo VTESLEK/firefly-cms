@@ -53,36 +53,99 @@
       </header>
 
       <main class="wrap">
-        <!-- 编辑器 -->
-        <div class="card editor-card">
-          <h2 id="editor-title">发布说说</h2>
-          <textarea id="f-content" rows="4" placeholder="写点什么…支持 Markdown 语法"></textarea>
-          <div class="row tags-row">
-            <div id="tags-box" class="tags-box">
-              <input id="f-tag" placeholder="输入标签后回车添加" />
+        <!-- 标签页 -->
+        <nav class="tabs">
+          <button class="tab active" data-tab="posts">说说</button>
+          <button class="tab" data-tab="links">友链</button>
+        </nav>
+
+        <!-- 说说标签页 -->
+        <div id="tab-posts">
+          <!-- 编辑器 -->
+          <div class="card editor-card">
+            <h2 id="editor-title">发布说说</h2>
+            <textarea id="f-content" rows="4" placeholder="写点什么…支持 Markdown 语法"></textarea>
+            <div class="row tags-row">
+              <div id="tags-box" class="tags-box">
+                <input id="f-tag" placeholder="输入标签后回车添加" />
+              </div>
             </div>
+            <div id="image-preview" class="img-preview hidden">
+              <img alt="配图预览" />
+              <span class="img-path"></span>
+              <button id="img-remove" class="btn danger ghost small">移除配图</button>
+            </div>
+            <div class="row actions-row">
+              <input id="f-date" type="datetime-local" title="发布时间（东八区）" />
+              <label class="btn ghost file-label">
+                添加配图
+                <input id="f-image" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/avif" hidden />
+              </label>
+              <span class="flex-spacer"></span>
+              <button id="cancel-btn" class="btn ghost hidden">取消编辑</button>
+              <button id="publish-btn" class="btn primary">发布</button>
+            </div>
+            <p id="editor-msg" class="msg"></p>
           </div>
-          <div id="image-preview" class="img-preview hidden">
-            <img alt="配图预览" />
-            <span class="img-path"></span>
-            <button id="img-remove" class="btn danger ghost small">移除配图</button>
-          </div>
-          <div class="row actions-row">
-            <input id="f-date" type="datetime-local" title="发布时间（东八区）" />
-            <label class="btn ghost file-label">
-              添加配图
-              <input id="f-image" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/avif" hidden />
-            </label>
-            <span class="flex-spacer"></span>
-            <button id="cancel-btn" class="btn ghost hidden">取消编辑</button>
-            <button id="publish-btn" class="btn primary">发布</button>
-          </div>
-          <p id="editor-msg" class="msg"></p>
+
+          <!-- 列表 -->
+          <div id="posts-list" class="posts-list"></div>
+          <p id="list-msg" class="msg center-text"></p>
         </div>
 
-        <!-- 列表 -->
-        <div id="posts-list" class="posts-list"></div>
-        <p id="list-msg" class="msg center-text"></p>
+        <!-- 友链标签页 -->
+        <div id="tab-links" class="hidden">
+          <!-- 友链编辑器 -->
+          <div class="card editor-card">
+            <h2 id="link-editor-title">添加友链</h2>
+            <div class="form-grid">
+              <label class="field">
+                <span class="field-label">名称 *</span>
+                <input id="lf-title" type="text" placeholder="站点名称" />
+              </label>
+              <label class="field">
+                <span class="field-label">站点地址 *</span>
+                <input id="lf-siteurl" type="url" placeholder="https://example.com" />
+              </label>
+              <label class="field">
+                <span class="field-label">头像图片地址</span>
+                <input id="lf-imgurl" type="url" placeholder="https://…/avatar.png" />
+              </label>
+              <label class="field">
+                <span class="field-label">标签（逗号分隔）</span>
+                <input id="lf-tags" type="text" placeholder="Blog, Astro" />
+              </label>
+              <label class="field span-2">
+                <span class="field-label">站点描述</span>
+                <input id="lf-desc" type="text" placeholder="一句话介绍" />
+              </label>
+              <label class="field">
+                <span class="field-label">权重（越大越靠前）</span>
+                <input id="lf-weight" type="number" value="0" />
+              </label>
+              <label class="field check-field">
+                <span class="field-label">启用</span>
+                <input id="lf-enabled" type="checkbox" checked />
+              </label>
+            </div>
+            <div class="row actions-row">
+              <span class="flex-spacer"></span>
+              <button id="lf-cancel" class="btn ghost hidden">取消编辑</button>
+              <button id="lf-add" class="btn primary">添加到列表</button>
+            </div>
+            <p id="lf-editor-msg" class="msg"></p>
+          </div>
+
+          <div class="row links-toolbar">
+            <span class="muted" id="links-count"></span>
+            <span class="flex-spacer"></span>
+            <button id="links-save" class="btn primary">保存全部更改</button>
+          </div>
+
+          <!-- 友链列表 -->
+          <div id="links-list" class="links-list"></div>
+          <p id="links-msg" class="msg center-text"></p>
+        </div>
       </main>
     </section>
 

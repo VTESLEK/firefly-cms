@@ -69,5 +69,44 @@ eq(checkEnv({}).includes("ACCESS_PASSWORD"), true, "checkEnv missing");
 const otherEnv = { ...env, ACCESS_PASSWORD: "changed" };
 eq(await requireAuth(fakeReq, otherEnv), null, "auth rejects after password change");
 
+/* 8. 友链：解析真实 friendsConfig.ts → 序列化 → 替换 → round-trip */
+import { readFileSync } from "node:fs";
+import { locateArray, splitObjects, parseLink, serializeLinks } from "./functions/api/links.js";
+
+const friendsSrc = readFileSync(new URL("../Firefly/src/config/friendsConfig.ts", import.meta.url), "utf-8");
+const seg = locateArray(friendsSrc);
+eq(seg !== null, true, "friends array located");
+const parsed = splitObjects(seg.body).map(parseLink);
+eq(parsed.length, 7, "friends parsed count");
+eq(parsed[0].title, "xane", "friends[0] title");
+eq(parsed[0].enabled, false, "friends[0] enabled=false");
+eq(parsed[2].tags, ["Framework"], "friends[2] tags");
+eq(parsed[2].weight, 100, "friends[2] weight");
+eq(parsed[3].siteurl, "https://blog.olinl.com", "friends[3] siteurl");
+eq(parsed[4].desc, "坐而言不如起而行.", "friends[4] desc (indent noise)");
+
+// round-trip：序列化后替换回文件，再次解析应完全一致
+const updated = friendsSrc.slice(0, seg.segStart) + serializeLinks(parsed) + friendsSrc.slice(seg.segEnd);
+const seg2 = locateArray(updated);
+const reparsed = splitObjects(seg2.body).map(parseLink);
+eq(reparsed, parsed, "friends round-trip identical");
+
+// 文件其余部分未被改动（friendsPageConfig 与 getEnabledFriends 原样保留）
+eq(updated.slice(0, seg.segStart), friendsSrc.slice(0, seg.segStart), "prefix untouched");
+eq(updated.slice(seg2.segEnd), friendsSrc.slice(seg.segEnd), "suffix untouched");
+eq(updated.includes("export const getEnabledFriends"), true, "getter preserved");
+
+// 特殊字符转义 round-trip
+const tricky = [
+  { title: '带"引号"的站点', imgurl: "https://a.b/c.png", desc: "反斜杠\\与\"引号\"", siteurl: "https://t.co", tags: ["A", "B"], weight: 1, enabled: true },
+];
+const segT = locateArray(updated);
+const updatedT = updated.slice(0, segT.segStart) + serializeLinks(tricky) + updated.slice(segT.segEnd);
+const rtT = splitObjects(locateArray(updatedT).body).map(parseLink);
+eq(rtT, tricky, "tricky quotes round-trip");
+
+// 空数组序列化
+eq(serializeLinks([]).trim(), "", "empty serialize");
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
