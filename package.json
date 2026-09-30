@@ -1,8 +1,8 @@
 {
   "name": "firefly-cms",
-  "version": "1.0.0",
+  "version": "2.4.0",
   "private": true,
-  "description": "独立部署在 Cloudflare Pages 上的 Firefly 说说 CMS",
+  "description": "部署在 Cloudflare Pages 上的博客内容管理后台（Firefly CMS）",
   "type": "module",
   "scripts": {
     "dev": "wrangler pages dev public --port 8788",
