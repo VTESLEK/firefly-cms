@@ -387,6 +387,14 @@
 						{ key: "categories", depth: 2, block: ["pages: {"], type: "boolean", label: "图谱页" },
 					],
 				},
+				{
+					title: "访问统计（Umami）",
+					fields: [
+						{ key: "scriptUrl", depth: 3, block: ["analytics: {", "umamiAnalytics: {"], type: "string", label: "Umami 脚本地址（跟踪代码里 script 的 src）" },
+						{ key: "websiteId", depth: 3, block: ["analytics: {", "umamiAnalytics: {"], type: "string", label: "Website ID（跟踪代码 data-website-id）" },
+						{ key: "shareId", depth: 3, block: ["analytics: {", "umamiAnalytics: {"], type: "string", label: "Share ID（共享链接 /share/ 后那段）" },
+					],
+				},
 			],
 		},
 		"homeConfig.ts": {
