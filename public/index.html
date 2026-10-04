@@ -7,7 +7,7 @@
     <title>Firefly CMS</title>
     <link rel="stylesheet" href="/vendor/element-plus.css" />
     <link rel="stylesheet" href="/vendor/element-plus-dark.css" />
-    <link rel="stylesheet" href="/style.css?v=3.0" />
+    <link rel="stylesheet" href="/style.css?v=3.1" />
     <script>
       // 提前应用主题（默认暗色），避免闪烁
       (() => {
@@ -385,6 +385,7 @@
 
                 <!-- 表单模式 -->
                 <template v-if="cfgMode === 'form'">
+                  <input ref="cfgImageFile" type="file" accept="image/*" hidden @change="onCfgImagePick" />
                   <div class="card cfg-file-bar">
                     <el-select v-model="cfgTab" style="width: 260px" @change="loadCfgForm">
                       <el-option v-for="f in cfgFormFiles" :key="f.value" :label="f.label" :value="f.value"></el-option>
@@ -430,6 +431,22 @@
                                 type="textarea"
                                 :rows="3"
                               ></el-input>
+                              <template v-else-if="f.image">
+                                <el-input v-model="cfgValues[cfgTab][f.id]" placeholder="图片链接，或点击上传自动填入">
+                                  <template #append>
+                                    <el-button :loading="cfgUploadingField === f.id" @click="cfgPickImage(f)">
+                                      <el-icon><epi-upload></epi-upload></el-icon><span>上传</span>
+                                    </el-button>
+                                  </template>
+                                </el-input>
+                                <img
+                                  v-if="cfgValues[cfgTab][f.id]"
+                                  class="cfg-img-preview"
+                                  :src="cfgValues[cfgTab][f.id]"
+                                  loading="lazy"
+                                  alt="预览"
+                                />
+                              </template>
                               <el-input v-else v-model="cfgValues[cfgTab][f.id]"></el-input>
                             </div>
                           </template>
@@ -644,7 +661,7 @@
     <script src="/vendor/element-plus.full.min.js"></script>
     <script src="/vendor/zh-cn.min.js"></script>
     <script src="/vendor/element-icons.iife.min.js"></script>
-    <script src="/config-forms.js?v=3.0.1"></script>
-    <script src="/app.js?v=3.0"></script>
+    <script src="/config-forms.js?v=3.1"></script>
+    <script src="/app.js?v=3.1"></script>
   </body>
 </html>

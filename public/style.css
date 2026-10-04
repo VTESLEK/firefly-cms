@@ -869,6 +869,15 @@ html:not(.dark) .login-card {
   gap: 14px;
   flex-wrap: wrap;
 }
+.cfg-img-preview {
+  margin-top: 8px;
+  max-height: 96px;
+  max-width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+  display: block;
+  background: color-mix(in srgb, var(--content-bg) 70%, transparent);
+}
 .obj-row {
   display: flex;
   align-items: center;

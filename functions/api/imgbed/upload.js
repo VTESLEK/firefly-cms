@@ -1,4 +1,4 @@
-// POST /api/imgbed/upload  { filename, data: base64, dir?: "shuoshuo"|"post" }
+// POST /api/imgbed/upload  { filename, data: base64, dir?: "shuoshuo"|"post"|"config" }
 // 代理 Sanyue ImgHub（CloudFlare-ImgBed v2）/upload 接口
 // token 与站点地址通过 Cloudflare Pages 环境变量注入：
 //   IMGHUB_BASE  图床实例地址，如 https://img.example.com（不带尾斜杠）
@@ -17,7 +17,7 @@ const MIME = {
   webp: "image/webp",
   avif: "image/avif",
 };
-const FOLDER = { post: "blog/posts", shuoshuo: "blog/shuoshuo" };
+const FOLDER = { post: "blog/posts", shuoshuo: "blog/shuoshuo", config: "blog/config" };
 // base64 后约 20MB（原图约 15MB），Pages Functions 请求上限 100MB
 const MAX_B64 = 20 * 1024 * 1024;
 

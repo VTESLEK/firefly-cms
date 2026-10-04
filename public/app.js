@@ -113,6 +113,7 @@ const App = {
       cfgLoadedFiles: [],
       cfgValues: {},
       cfgLists: {},
+      cfgUploadingField: "",
       cfgRawFile: "siteConfig.ts",
       cfgRawContent: "",
       cfgRawOriginal: "",
@@ -755,6 +756,28 @@ const App = {
     cfgListItems(fid) {
       const l = this.cfgLists[this.cfgTab];
       return (l && l[fid]) || [];
+    },
+    // 图片字段：选图 → 图床上传 → 链接填入输入框
+    cfgPickImage(field) {
+      this._cfgImageFid = field.id; // 非响应式暂存，onCfgImagePick 里取用
+      this.$refs.cfgImageFile.click();
+    },
+    async onCfgImagePick(e) {
+      const fid = this._cfgImageFid || "";
+      this._cfgImageFid = "";
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (!file || !fid) return;
+      this.cfgUploadingField = fid;
+      try {
+        const { path } = await this.uploadImageFile(file, "config");
+        this.cfgValues[this.cfgTab][fid] = path;
+        ElMessage.success("已上传并填入链接，记得点保存");
+      } catch (err) {
+        ElMessage.error(`上传失败：${err.message}`);
+      } finally {
+        this.cfgUploadingField = "";
+      }
     },
     addCfgItem(field) {
       const item = {};

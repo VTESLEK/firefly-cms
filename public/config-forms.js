@@ -333,6 +333,7 @@
 						{ key: "site_url", depth: 1, type: "string", label: "站点 URL" },
 						{ key: "description", depth: 1, type: "string", label: "站点描述", textarea: true },
 						{ key: "keywords", depth: 1, type: "stringArray", label: "关键词（逗号分隔）" },
+						{ key: "defaultOgImage", depth: 1, type: "string", image: true, label: "默认 OG 图" },
 					],
 				},
 				{
@@ -377,7 +378,7 @@
 				{
 					title: "个人信息",
 					fields: [
-						{ key: "avatar", depth: 1, type: "string", label: "头像地址" },
+						{ key: "avatar", depth: 1, type: "string", image: true, label: "头像地址" },
 						{ key: "name", depth: 1, type: "string", label: "名字" },
 						{ key: "displayName", depth: 1, type: "string", label: "展示名字（留空用名字）" },
 						{ key: "bio", depth: 1, type: "stringArray", label: "个性签名（每行一条，循环打字）", textarea: true },
@@ -386,7 +387,7 @@
 				{
 					title: "首屏",
 					fields: [
-						{ key: "backgroundImage", depth: 2, block: ["hero: {"], type: "string", label: "首屏背景图" },
+						{ key: "backgroundImage", depth: 2, block: ["hero: {"], type: "string", image: true, label: "首屏背景图" },
 						{ key: "enabled", depth: 3, block: ["hero: {", "rain: {"], type: "boolean", label: "玻璃雨珠动画" },
 					],
 				},
