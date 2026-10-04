@@ -395,6 +395,13 @@
 						{ key: "shareId", depth: 3, block: ["analytics: {", "umamiAnalytics: {"], type: "string", label: "Share ID（共享链接 /share/ 后那段）" },
 					],
 				},
+				{
+					title: "访问统计（自建计数器）",
+					fields: [
+						{ key: "apiUrl", depth: 3, block: ["analytics: {", "visitorCounter: {"], type: "string", label: "计数器 API 地址（如 https://stats.xane.eu.cc）" },
+						{ key: "site", depth: 3, block: ["analytics: {", "visitorCounter: {"], type: "string", label: "站点标识（域名，如 xane.eu.cc）" },
+					],
+				},
 			],
 		},
 		"homeConfig.ts": {
