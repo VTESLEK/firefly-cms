@@ -388,6 +388,7 @@
 					title: "首屏",
 					fields: [
 						{ key: "backgroundImage", depth: 2, block: ["hero: {"], type: "string", image: true, label: "首屏背景图" },
+						{ key: "mobileBackgroundImage", depth: 2, block: ["hero: {"], type: "string", image: true, label: "手机壁纸（留空用电脑壁纸）" },
 						{ key: "enabled", depth: 3, block: ["hero: {", "rain: {"], type: "boolean", label: "玻璃雨珠动画" },
 					],
 				},
