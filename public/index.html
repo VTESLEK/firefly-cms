@@ -7,7 +7,7 @@
     <title>Firefly CMS</title>
     <link rel="stylesheet" href="/vendor/element-plus.css" />
     <link rel="stylesheet" href="/vendor/element-plus-dark.css" />
-    <link rel="stylesheet" href="/style.css?v=3.1" />
+    <link rel="stylesheet" href="/style.css?v=3.3" />
     <script>
       // 提前应用主题（默认暗色），避免闪烁
       (() => {
@@ -404,6 +404,7 @@
                               <div v-for="(item, idx) in cfgListItems(f.id)" :key="idx" class="obj-row">
                                 <template v-for="col in f.columns" :key="col.key">
                                   <el-checkbox v-if="col.type === 'boolean'" v-model="item[col.key]">{{ col.label }}</el-checkbox>
+                                  <el-input v-else-if="col.textarea" v-model="item[col.key]" type="textarea" :rows="2" :placeholder="col.label"></el-input>
                                   <el-input v-else v-model="item[col.key]" :placeholder="col.label"></el-input>
                                 </template>
                                 <el-button link type="danger" @click="removeCfgItem(f.id, idx)">删除</el-button>
@@ -661,7 +662,7 @@
     <script src="/vendor/element-plus.full.min.js"></script>
     <script src="/vendor/zh-cn.min.js"></script>
     <script src="/vendor/element-icons.iife.min.js"></script>
-    <script src="/config-forms.js?v=3.2"></script>
+    <script src="/config-forms.js?v=3.3"></script>
     <script src="/app.js?v=3.1"></script>
   </body>
 </html>

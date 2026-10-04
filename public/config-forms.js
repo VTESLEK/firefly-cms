@@ -289,8 +289,18 @@
 					item[col.key] = pickString(obj, col.key);
 				}
 			}
+			// 记录原文与初值（不可枚举，不影响 JSON/渲染）：未改动的项序列化时原样回写，
+			// 保持源文件里 Biome 换行等格式不变
+			Object.defineProperty(item, "__raw", { value: obj, enumerable: false });
+			Object.defineProperty(item, "__orig", { value: { ...item }, enumerable: false });
 			return item;
 		});
+	}
+
+	// 所有列的值与初始解析值一致 → 视为未改动
+	function objUnchanged(item, field) {
+		if (!item || !item.__orig) return false;
+		return field.columns.every((col) => item[col.key] === item.__orig[col.key]);
 	}
 
 	function serializeObjectList(items, field, eol = "\n") {
@@ -299,17 +309,24 @@
 		const indent = ((field.anchor.match(/\n(\t+)/) || [])[1] || "").length;
 		const body = (Array.isArray(items) ? items : [])
 			.map((item) => {
+				// 未改动项：原文回写（含原格式）
+				if (objUnchanged(item, field) && typeof item.__raw === "string") {
+					return `${t}${t}${item.__raw},`;
+				}
 				const lines = [`${t}${t}{`];
 				for (const col of field.columns) {
-					const v =
+					const v = item[col.key];
+					// optional 列：值为空时整行省略（与源文件可选字段保持一致）
+					if (col.optional && (v === "" || v == null)) continue;
+					const out =
 						col.type === "boolean"
-							? item[col.key] === true || item[col.key] === "true"
+							? v === true || v === "true"
 							: col.type === "number"
-								? Number.isFinite(Number(item[col.key]))
-									? Math.trunc(Number(item[col.key]))
+								? Number.isFinite(Number(v))
+									? Math.trunc(Number(v))
 									: 0
-								: q(item[col.key]);
-					lines.push(`${t}${t}${t}${col.key}: ${v},`);
+								: q(v);
+					lines.push(`${t}${t}${t}${col.key}: ${out},`);
 				}
 				lines.push(`${t}${t}},`);
 				return lines.join(eol);
@@ -449,6 +466,36 @@
 					fields: [
 						{ key: "icp", depth: 2, block: ["beian: {"], type: "string", label: "ICP 备案号" },
 						{ key: "police", depth: 2, block: ["beian: {"], type: "string", label: "公安备案号" },
+					],
+				},
+			],
+		},
+		"announcementConfig.ts": {
+			label: "公告",
+			groups: [
+				{
+					title: "公告设置",
+					fields: [
+						{ key: "title", depth: 1, type: "string", label: "公告标题" },
+						{ key: "closable", depth: 1, type: "boolean", label: "允许访客关闭公告" },
+					],
+				},
+				{
+					title: "公告列表（sort 越大越靠前）",
+					fields: [
+						{
+							anchor: "\n\titems: [",
+							type: "objectList",
+							label: "公告列表",
+							columns: [
+								{ key: "tag", type: "string", label: "标签" },
+								{ key: "title", type: "string", label: "标题" },
+								{ key: "content", type: "string", textarea: true, label: "内容" },
+								{ key: "time", type: "string", label: "日期" },
+								{ key: "link", type: "string", optional: true, label: "链接（可留空）" },
+								{ key: "sort", type: "number", label: "排序" },
+							],
+						},
 					],
 				},
 			],

@@ -881,6 +881,7 @@ html:not(.dark) .login-card {
 .obj-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
   padding: 8px 10px;
   border: 1px solid var(--card-border);
@@ -891,6 +892,10 @@ html:not(.dark) .login-card {
 .obj-row .el-input,
 .obj-row .el-checkbox {
   flex: 1;
+  min-width: 0;
+}
+.obj-row .el-textarea {
+  flex: 1 1 100%;
   min-width: 0;
 }
 .obj-row .el-button {
