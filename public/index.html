@@ -393,7 +393,7 @@
                   </div>
                   <div v-loading="cfgLoading">
                     <div v-if="cfgError" class="center-text msg">{{ cfgError }}</div>
-                    <template v-else-if="cfgDef">
+                    <template v-else-if="cfgDef && cfgValues[cfgTab]">
                       <div v-for="g in cfgDef.groups" :key="g.title" class="card cfg-group">
                         <h3>{{ g.title }}</h3>
                         <div class="form-grid">
@@ -644,7 +644,7 @@
     <script src="/vendor/element-plus.full.min.js"></script>
     <script src="/vendor/zh-cn.min.js"></script>
     <script src="/vendor/element-icons.iife.min.js"></script>
-    <script src="/config-forms.js?v=3.0"></script>
+    <script src="/config-forms.js?v=3.0.1"></script>
     <script src="/app.js?v=3.0"></script>
   </body>
 </html>

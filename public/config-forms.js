@@ -522,6 +522,16 @@
 		return out;
 	}
 
+	// 模板直接遍历 FORMS 渲染，字段统一补 id（objectList 用 anchor，其余用 block 路径 + key），
+	// 与 extract/apply 里 flatFields 的 id 公式保持一致
+	for (const def of Object.values(FORMS)) {
+		for (const g of def.groups) {
+			for (const f of g.fields) {
+				f.id = f.type === "objectList" ? f.anchor : (f.block ? f.block.join(" > ") + " > " : "") + (f.key || "");
+			}
+		}
+	}
+
 	const api = {
 		FORMS,
 		flatFields,
