@@ -2,9 +2,13 @@ name = "firefly-cms"
 compatibility_date = "2025-01-01"
 pages_build_output_dir = "public"
 
+# 对接的博客仓库（敏感值用 npx wrangler pages secret put 设置，不进本文件）
+[vars]
+GITHUB_OWNER = "VTESLEK"
+GITHUB_REPO = "my-blog"
+GITHUB_BRANCH = "master"
+
 # 环境变量（secrets）不在本文件中配置，通过以下方式设置：
 #   npx wrangler pages secret put ACCESS_PASSWORD
 #   npx wrangler pages secret put GITHUB_TOKEN
-#   npx wrangler pages secret put GITHUB_OWNER
-#   npx wrangler pages secret put GITHUB_REPO
-#   （可选）npx wrangler pages secret put GITHUB_BRANCH  默认 master
+#   （可选）npx wrangler pages secret put IMGHUB_BASE / IMGHUB_TOKEN
