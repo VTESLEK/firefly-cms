@@ -1,7 +1,14 @@
 // Firefly CMS — Vue 3 + Element Plus（Art Design Pro 风格，无构建）
-// 页面：工作台 / 文章管理 / 说说管理 / 友链管理
+// 页面：工作台 / 文章管理 / 页面内容 / 站点配置 / 静态资源 / 友链管理
 
-const PAGE_NAMES = { dashboard: "工作台", posts: "文章管理", shuoshuo: "说说管理", links: "友链管理" };
+const PAGE_NAMES = {
+	dashboard: "工作台",
+	posts: "文章管理",
+	spec: "页面内容",
+	config: "站点配置",
+	assets: "静态资源",
+	links: "友链管理",
+};
 const PRIMARY_COLORS = ["#5D87FF", "#B48DF3", "#1D84FF", "#60C041", "#38C0FC", "#F9901F", "#FF80C8"];
 const BLOG_URL = "https://xane.eu.cc";
 
@@ -39,26 +46,6 @@ function today() {
   return new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
 }
 
-// 当前时间，供 datetime 默认值（浏览器本地时区）
-function localNow() {
-  const d = new Date();
-  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-  return d.toISOString().slice(0, 16);
-}
-
-// 后端日期（ISO 带时区）→ datetime 值，按东八区展示
-function toDatetimeLocal(dateStr) {
-  const ms = Date.parse(dateStr);
-  if (Number.isNaN(ms)) return localNow();
-  const d = new Date(ms + 8 * 3600 * 1000);
-  return d.toISOString().slice(0, 16);
-}
-
-// 列表展示：直接显示存储的东八区墙上时间，不做二次换算
-function displayDate(dateStr) {
-  return String(dateStr).replace("T", " ").slice(0, 16);
-}
-
 const App = {
   data() {
     return {
@@ -84,7 +71,7 @@ const App = {
       // 工作台
       dashboardLoading: false,
       recentError: "",
-      stats: { posts: 0, drafts: 0, shuoshuo: 0, links: 0 },
+      stats: { posts: 0, drafts: 0, spec: 0, links: 0 },
       recentPosts: [],
 
       // 文章
@@ -105,17 +92,43 @@ const App = {
       pTags: [],
       pTagInput: "",
 
-      // 说说
-      shuoshuoList: [],
-      shuoLoading: false,
-      shuoError: "",
-      editingShuoFile: null,
-      publishing: false,
-      shuoDragDepth: 0,
-      shuoDragActive: false,
-      sf: { content: "", image: "", date: "" },
-      sTags: [],
-      sTagInput: "",
+      // 页面内容（spec）
+      specFiles: [],
+      specLoading: false,
+      specError: "",
+      specEditorView: false,
+      editingSpecFile: null,
+      editingSpecLabel: "",
+      savingSpec: false,
+      specContent: "",
+
+      // 站点配置
+      configFiles: [],
+      configFilesLoaded: false,
+      cfgMode: "form",
+      cfgTab: "siteConfig.ts",
+      cfgError: "",
+      cfgLoading: false,
+      cfgSaving: false,
+      cfgLoadedFiles: [],
+      cfgValues: {},
+      cfgLists: {},
+      cfgRawFile: "siteConfig.ts",
+      cfgRawContent: "",
+      cfgRawOriginal: "",
+      cfgRawLoading: false,
+      cfgRawSaving: false,
+
+      // 静态资源
+      assetDir: "",
+      assetEntries: [],
+      assetLoading: false,
+      assetError: "",
+      assetUploading: false,
+      assetDragDepth: 0,
+      assetDragActive: false,
+      assetPreviewOpen: false,
+      assetPreview: null,
 
       // 友链
       links: [],
@@ -150,7 +163,7 @@ const App = {
       return [
         { label: "文章总数", value: this.stats.posts, icon: "EpiDocument", color: "#5D87FF", bg: "rgba(93,135,255,.14)" },
         { label: "草稿箱", value: this.stats.drafts, icon: "EpiEditPen", color: "#F9901F", bg: "rgba(249,144,31,.14)" },
-        { label: "说说", value: this.stats.shuoshuo, icon: "EpiChatDotRound", color: "#60C041", bg: "rgba(96,192,65,.14)" },
+        { label: "页面内容", value: this.stats.spec, icon: "EpiNotebook", color: "#38C0FC", bg: "rgba(56,192,252,.14)" },
         { label: "友链（启用）", value: this.stats.links, icon: "EpiLink", color: "#B48DF3", bg: "rgba(180,141,243,.16)" },
       ];
     },
@@ -167,6 +180,30 @@ const App = {
     linksCountText() {
       const enabled = this.links.filter((l) => l.enabled).length;
       return `共 ${this.links.length} 条 · 启用 ${enabled} 条${this.linksDirty ? " · 有未保存修改" : ""}`;
+    },
+    cfgDef() {
+      return (window.ConfigForms || {}).FORMS?.[this.cfgTab] || null;
+    },
+    cfgFormFiles() {
+      const FORMS = (window.ConfigForms || {}).FORMS || {};
+      return Object.keys(FORMS).map((k) => ({ value: k, label: `${FORMS[k].label}（${k}）` }));
+    },
+    cfgRawFiles() {
+      return this.configFiles.map((f) => ({ value: f.name, label: `${f.label || f.name}（${f.name}）` }));
+    },
+    cfgRawDirty() {
+      return this.cfgRawContent !== this.cfgRawOriginal;
+    },
+    assetCrumbs() {
+      const crumbs = [{ name: "public/", path: "" }];
+      if (!this.assetDir) return crumbs;
+      const parts = this.assetDir.split("/");
+      let acc = "";
+      for (const p of parts) {
+        acc = acc ? `${acc}/${p}` : p;
+        crumbs.push({ name: p, path: acc });
+      }
+      return crumbs;
     },
   },
 
@@ -286,7 +323,9 @@ const App = {
       if (page === "dashboard") this.loadDashboard();
       else if (page === "posts") {
         if (!this.editorView) this.loadArticles();
-      } else if (page === "shuoshuo") this.loadShuoshuo();
+      } else if (page === "spec") this.loadSpecList();
+      else if (page === "config") this.loadConfigPage();
+      else if (page === "assets") this.loadAssets(this.assetDir);
       else if (page === "links") this.loadLinks();
     },
 
@@ -295,11 +334,11 @@ const App = {
       this.dashboardLoading = true;
       this.recentError = "";
       try {
-        const [p, s, l] = await Promise.all([this.api("/api/posts"), this.api("/api/shuoshuo"), this.api("/api/links")]);
+        const [p, sp, l] = await Promise.all([this.api("/api/posts"), this.api("/api/spec"), this.api("/api/links")]);
         this.stats = {
           posts: p.posts.length,
           drafts: p.posts.filter((x) => x.draft).length,
-          shuoshuo: s.posts.length,
+          spec: sp.files.length,
           links: l.links.filter((x) => x.enabled).length,
         };
         this.recentPosts = p.posts.slice(0, 5);
@@ -310,7 +349,6 @@ const App = {
         this.dashboardLoading = false;
       }
     },
-    displayDate,
     postRowMeta(row) {
       return [
         row.published && String(row.published).slice(0, 10),
@@ -563,44 +601,6 @@ const App = {
       });
     },
 
-    /* 说说编辑器：拖拽 / 粘贴图片（说说仅支持 1 张配图） */
-    onShuoDragEnter(e) {
-      if (!this.hasDragFiles(e)) return;
-      e.preventDefault();
-      this.shuoDragDepth += 1;
-      this.shuoDragActive = true;
-    },
-    onShuoDragOver(e) {
-      if (this.hasDragFiles(e)) e.preventDefault();
-    },
-    onShuoDragLeave() {
-      this.shuoDragDepth = Math.max(0, this.shuoDragDepth - 1);
-      if (this.shuoDragDepth === 0) this.shuoDragActive = false;
-    },
-    resetShuoDrag() {
-      this.shuoDragDepth = 0;
-      this.shuoDragActive = false;
-    },
-    async applyShuoImages(files) {
-      const urls = await this.uploadImageFiles(files, "shuoshuo");
-      if (!urls.length) return;
-      this.sf.image = urls[0];
-      if (urls.length > 1) ElMessage.warning(`说说仅支持 1 张配图，已使用第 1 张，其余 ${urls.length - 1} 张已上传但未引用`);
-      else ElMessage.success("配图已上传");
-    },
-    async onShuoDrop(e) {
-      if (!this.hasDragFiles(e)) return;
-      e.preventDefault();
-      this.resetShuoDrag();
-      const files = this.pickImageFiles(e.dataTransfer);
-      if (files.length) await this.applyShuoImages(files);
-    },
-    onShuoPaste(e) {
-      const files = this.pasteImageFiles(e);
-      if (!files.length) return;
-      e.preventDefault();
-      this.applyShuoImages(files);
-    },
     async onInsertImage(e) {
       const file = e.target.files[0];
       e.target.value = "";
@@ -621,18 +621,6 @@ const App = {
         const { path } = await this.uploadImageFile(file, "post");
         this.pf.image = path;
         ElMessage.success("封面已上传");
-      } catch (err) {
-        ElMessage.error(err.message);
-      }
-    },
-    async onShuoImage(e) {
-      const file = e.target.files[0];
-      e.target.value = "";
-      if (!file) return;
-      try {
-        const { path } = await this.uploadImageFile(file, "shuoshuo");
-        this.sf.image = path;
-        ElMessage.success("配图已上传");
       } catch (err) {
         ElMessage.error(err.message);
       }
@@ -678,70 +666,281 @@ const App = {
       }
     },
 
-    /* ---------- 说说 ---------- */
-    async loadShuoshuo() {
-      this.shuoLoading = true;
-      this.shuoError = "";
+    /* ---------- 页面内容（spec） ---------- */
+    async loadSpecList() {
+      this.specLoading = true;
+      this.specError = "";
       try {
-        const { posts } = await this.api("/api/shuoshuo");
-        this.shuoshuoList = posts;
+        const { files } = await this.api("/api/spec");
+        this.specFiles = files;
       } catch (e) {
-        this.shuoError = e.message;
+        this.specError = e.message;
       } finally {
-        this.shuoLoading = false;
+        this.specLoading = false;
       }
     },
-    resetShuoEditor() {
-      this.resetShuoDrag();
-      this.editingShuoFile = null;
-      this.sf.content = "";
-      this.sf.image = "";
-      this.sf.date = localNow();
-      this.sTags = [];
-      this.sTagInput = "";
-    },
-    fillShuoEditor(p) {
-      this.resetShuoEditor();
-      this.editingShuoFile = p.file;
-      this.sf.content = p.content || "";
-      this.sf.image = p.image || "";
-      this.sf.date = toDatetimeLocal(p.date);
-      this.sTags = [...(p.tags || [])];
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    },
-    removeSTag(t) {
-      this.sTags = this.sTags.filter((x) => x !== t);
-    },
-    addSTag() {
-      const t = this.sTagInput.trim().replace(/\s+/g, "");
-      if (t && !this.sTags.includes(t)) this.sTags.push(t);
-      this.sTagInput = "";
-    },
-    async publishShuoshuo() {
-      const content = this.sf.content.trim();
-      if (!content) return ElMessage.warning("内容不能为空");
-      const date = this.sf.date || localNow();
-      this.publishing = true;
+    async openSpecEditor(name) {
+      this.handleMenuSelect("spec");
+      this.specLoading = true;
       try {
-        const payload = JSON.stringify({ content, tags: this.sTags, image: this.sf.image, date });
-        if (this.editingShuoFile) {
-          await this.api(`/api/shuoshuo/${encodeURIComponent(this.editingShuoFile)}`, { method: "PUT", body: payload });
-          ElMessage.success("已保存，博客将在 1-3 分钟内自动更新");
-        } else {
-          await this.api("/api/shuoshuo", { method: "POST", body: payload });
-          ElMessage.success("发布成功，博客将在 1-3 分钟内自动更新");
-        }
-        this.resetShuoEditor();
-        await this.loadShuoshuo();
+        const { content, label } = await this.api(`/api/spec?file=${encodeURIComponent(name)}`);
+        this.editingSpecFile = name;
+        this.editingSpecLabel = label || name;
+        this.specContent = content;
+        this.specEditorView = true;
+        this.$nextTick(() => window.scrollTo({ top: 0 }));
       } catch (e) {
         ElMessage.error(e.message);
       } finally {
-        this.publishing = false;
+        this.specLoading = false;
       }
     },
-    async deleteShuoshuo(p) {
+    backToSpecList() {
+      this.specEditorView = false;
+      this.loadSpecList();
+    },
+    async saveSpec() {
+      if (!this.specContent.trim()) return ElMessage.warning("内容不能为空");
+      this.savingSpec = true;
       try {
-        await ElMessageBox.confirm(`确定删除这条说说？（${p.file}）`, "删除确认", {
+        await this.api("/api/spec", {
+          method: "PUT",
+          body: JSON.stringify({ file: this.editingSpecFile, content: this.specContent }),
+        });
+        ElMessage.success("已保存，博客将在 1-3 分钟内自动更新");
+        setTimeout(() => this.backToSpecList(), 800);
+      } catch (e) {
+        ElMessage.error(e.message);
+      } finally {
+        this.savingSpec = false;
+      }
+    },
+
+    /* ---------- 站点配置 ---------- */
+    async loadConfigPage() {
+      if (!this.configFilesLoaded) {
+        try {
+          const { files } = await this.api("/api/config");
+          this.configFiles = files;
+          this.configFilesLoaded = true;
+        } catch (e) {
+          ElMessage.error(e.message);
+        }
+      }
+      this.loadCfgForm(this.cfgTab);
+      if (!this.cfgRawOriginal) this.loadCfgRaw(this.cfgRawFile);
+    },
+    async loadCfgForm(file) {
+      const CF = window.ConfigForms || {};
+      if (!CF.FORMS?.[file]) return;
+      if (this.cfgLoadedFiles.includes(file)) return;
+      this.cfgLoading = true;
+      this.cfgError = "";
+      try {
+        const { content } = await this.api(`/api/config?file=${encodeURIComponent(file)}`);
+        const { values, lists } = CF.extract(content, file);
+        // stringArray 以多行文本编辑
+        for (const f of CF.flatFields(file)) {
+          if (f.type === "stringArray" && Array.isArray(values[f.id])) values[f.id] = values[f.id].join("\n");
+        }
+        this.cfgValues = { ...this.cfgValues, [file]: values };
+        this.cfgLists = { ...this.cfgLists, [file]: lists };
+        this.cfgLoadedFiles.push(file);
+      } catch (e) {
+        this.cfgError = e.message;
+      } finally {
+        this.cfgLoading = false;
+      }
+    },
+    cfgListItems(fid) {
+      const l = this.cfgLists[this.cfgTab];
+      return (l && l[fid]) || [];
+    },
+    addCfgItem(field) {
+      const item = {};
+      for (const col of field.columns) item[col.key] = col.type === "boolean" ? false : "";
+      this.cfgListItems(field.id).push(item);
+    },
+    removeCfgItem(fid, idx) {
+      this.cfgListItems(fid).splice(idx, 1);
+    },
+    async saveCfgForm() {
+      const file = this.cfgTab;
+      const CF = window.ConfigForms;
+      if (!CF.FORMS[file]) return;
+      try {
+        await ElMessageBox.confirm("保存将直接提交到 GitHub 并触发博客重建，确定保存？", "保存确认", {
+          type: "warning",
+          confirmButtonText: "保存",
+          cancelButtonText: "取消",
+        });
+      } catch {
+        return;
+      }
+      this.cfgSaving = true;
+      try {
+        // 基于远端最新内容打补丁，只触碰表单字段
+        const { content } = await this.api(`/api/config?file=${encodeURIComponent(file)}`);
+        const values = JSON.parse(JSON.stringify(this.cfgValues[file] || {}));
+        const lists = JSON.parse(JSON.stringify(this.cfgLists[file] || {}));
+        for (const f of CF.flatFields(file)) {
+          if (f.type === "stringArray") {
+            values[f.id] = String(values[f.id] ?? "")
+              .split(/\r?\n/)
+              .map((s) => s.trim())
+              .filter(Boolean);
+          }
+        }
+        const next = CF.apply(content, file, values, lists);
+        await this.api("/api/config", { method: "PUT", body: JSON.stringify({ file, content: next }) });
+        ElMessage.success("已保存，博客将在 1-3 分钟内自动更新");
+      } catch (e) {
+        ElMessage.error(/未找到/.test(e.message) ? `${e.message}（配置结构可能已变化，请改用源码编辑）` : e.message);
+      } finally {
+        this.cfgSaving = false;
+      }
+    },
+    async loadCfgRaw(file) {
+      this.cfgRawLoading = true;
+      this.cfgError = "";
+      try {
+        const { content } = await this.api(`/api/config?file=${encodeURIComponent(file)}`);
+        this.cfgRawContent = content;
+        this.cfgRawOriginal = content;
+      } catch (e) {
+        this.cfgError = e.message;
+      } finally {
+        this.cfgRawLoading = false;
+      }
+    },
+    async saveCfgRaw() {
+      if (!this.cfgRawContent.trim()) return ElMessage.warning("内容不能为空");
+      try {
+        await ElMessageBox.confirm(
+          "保存将覆盖整个配置文件并触发博客重建，格式错误会导致构建失败，确定保存？",
+          "保存确认",
+          { type: "warning", confirmButtonText: "保存", cancelButtonText: "取消" },
+        );
+      } catch {
+        return;
+      }
+      this.cfgRawSaving = true;
+      try {
+        await this.api("/api/config", {
+          method: "PUT",
+          body: JSON.stringify({ file: this.cfgRawFile, content: this.cfgRawContent }),
+        });
+        this.cfgRawOriginal = this.cfgRawContent;
+        ElMessage.success("已保存，博客将在 1-3 分钟内自动更新");
+      } catch (e) {
+        ElMessage.error(e.message);
+      } finally {
+        this.cfgRawSaving = false;
+      }
+    },
+    resetCfgRaw() {
+      this.cfgRawContent = this.cfgRawOriginal;
+    },
+
+    /* ---------- 静态资源 ---------- */
+    formatSize(n) {
+      const v = Number(n);
+      if (!Number.isFinite(v)) return "";
+      if (v < 1024) return `${v} B`;
+      if (v < 1024 * 1024) return `${(v / 1024).toFixed(1)} KB`;
+      return `${(v / 1024 / 1024).toFixed(2)} MB`;
+    },
+    isImage(name) {
+      return /\.(png|jpe?g|webp|avif|gif|svg|bmp|ico)$/i.test(String(name));
+    },
+    assetJoin(name) {
+      return this.assetDir ? `${this.assetDir}/${name}` : name;
+    },
+    async loadAssets(dir) {
+      this.assetLoading = true;
+      this.assetError = "";
+      this.assetDir = dir || "";
+      try {
+        const { entries } = await this.api(`/api/assets?dir=${encodeURIComponent(this.assetDir)}`);
+        this.assetEntries = entries;
+      } catch (e) {
+        this.assetError = e.message;
+        this.assetEntries = [];
+      } finally {
+        this.assetLoading = false;
+      }
+    },
+    enterAssetDir(path) {
+      this.loadAssets(path);
+    },
+    clickAsset(e) {
+      if (e.type === "dir") this.enterAssetDir(this.assetJoin(e.name));
+    },
+    previewAsset(e) {
+      this.assetPreview = { name: e.name, url: "/" + this.assetJoin(e.name) };
+      this.assetPreviewOpen = true;
+    },
+    async copyAssetPath(e) {
+      const path = "/" + this.assetJoin(e.name);
+      try {
+        await navigator.clipboard.writeText(path);
+        ElMessage.success(`已复制 ${path}`);
+      } catch {
+        ElMessage.info(`路径：${path}`);
+      }
+    },
+    async uploadAssetFiles(files) {
+      if (!files || !files.length) return;
+      this.assetUploading = true;
+      try {
+        for (const f of files) {
+          try {
+            const data = await this.readFileB64(f);
+            await this.api("/api/assets", {
+              method: "POST",
+              body: JSON.stringify({ path: this.assetJoin(f.name), data }),
+              timeout: 90000,
+            });
+            ElMessage.success(`${f.name} 已上传`);
+          } catch (err) {
+            ElMessage.error(`${f.name} 上传失败：${err.message}`);
+          }
+        }
+        await this.loadAssets(this.assetDir);
+      } finally {
+        this.assetUploading = false;
+      }
+    },
+    async onAssetPick(e) {
+      const files = [...(e.target.files || [])];
+      e.target.value = "";
+      await this.uploadAssetFiles(files);
+    },
+    onAssetDragEnter(e) {
+      if (!this.hasDragFiles(e)) return;
+      e.preventDefault();
+      this.assetDragDepth += 1;
+      this.assetDragActive = true;
+    },
+    onAssetDragOver(e) {
+      if (this.hasDragFiles(e)) e.preventDefault();
+    },
+    onAssetDragLeave() {
+      this.assetDragDepth = Math.max(0, this.assetDragDepth - 1);
+      if (this.assetDragDepth === 0) this.assetDragActive = false;
+    },
+    async onAssetDrop(e) {
+      if (!this.hasDragFiles(e)) return;
+      e.preventDefault();
+      this.assetDragDepth = 0;
+      this.assetDragActive = false;
+      const files = [...(e.dataTransfer.files || [])];
+      await this.uploadAssetFiles(files);
+    },
+    async deleteAsset(entry) {
+      const path = this.assetJoin(entry.name);
+      try {
+        await ElMessageBox.confirm(`确定删除 public/${path}？此操作不可恢复`, "删除确认", {
           type: "warning",
           confirmButtonText: "删除",
           cancelButtonText: "取消",
@@ -751,10 +950,9 @@ const App = {
         return;
       }
       try {
-        await this.api(`/api/shuoshuo/${encodeURIComponent(p.file)}`, { method: "DELETE" });
-        if (this.editingShuoFile === p.file) this.resetShuoEditor();
+        await this.api("/api/assets", { method: "DELETE", body: JSON.stringify({ path }) });
         ElMessage.success("已删除");
-        await this.loadShuoshuo();
+        await this.loadAssets(this.assetDir);
       } catch (e) {
         ElMessage.error(e.message);
       }

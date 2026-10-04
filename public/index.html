@@ -7,7 +7,7 @@
     <title>Firefly CMS</title>
     <link rel="stylesheet" href="/vendor/element-plus.css" />
     <link rel="stylesheet" href="/vendor/element-plus-dark.css" />
-    <link rel="stylesheet" href="/style.css?v=2.4" />
+    <link rel="stylesheet" href="/style.css?v=3.0" />
     <script>
       // 提前应用主题（默认暗色），避免闪烁
       (() => {
@@ -46,7 +46,7 @@
           <p class="login-tip">输入访问密码登录，保存后自动提交到 GitHub 并触发博客部署。</p>
           <el-input v-model="password" type="password" size="large" placeholder="访问密码" show-password @keyup.enter="login"></el-input>
           <el-button type="primary" size="large" class="login-btn" :loading="loginLoading" @click="login">登 录</el-button>
-          <p class="login-foot">Firefly CMS · Art Design Pro 风格 · v2.4</p>
+          <p class="login-foot">Firefly CMS · Art Design Pro 风格 · v3.0</p>
         </div>
       </div>
 
@@ -73,9 +73,17 @@
               <el-icon><epi-document></epi-document></el-icon>
               <template #title>文章管理</template>
             </el-menu-item>
-            <el-menu-item index="shuoshuo">
-              <el-icon><epi-chat-dot-round></epi-chat-dot-round></el-icon>
-              <template #title>说说管理</template>
+            <el-menu-item index="spec">
+              <el-icon><epi-notebook></epi-notebook></el-icon>
+              <template #title>页面内容</template>
+            </el-menu-item>
+            <el-menu-item index="config">
+              <el-icon><epi-setting></epi-setting></el-icon>
+              <template #title>站点配置</template>
+            </el-menu-item>
+            <el-menu-item index="assets">
+              <el-icon><epi-folder-opened></epi-folder-opened></el-icon>
+              <template #title>静态资源</template>
             </el-menu-item>
             <el-menu-item index="links">
               <el-icon><epi-link></epi-link></el-icon>
@@ -84,7 +92,7 @@
           </el-menu>
           <div v-show="!menuCollapsed" class="sidebar-foot">
             <a href="https://xane.eu.cc" target="_blank" rel="noopener"><el-icon><epi-position></epi-position></el-icon>前往博客</a>
-            <span class="ver">v2.4</span>
+            <span class="ver">v3.0</span>
           </div>
         </aside>
 
@@ -309,73 +317,226 @@
                 </template>
               </section>
 
-              <!-- ============ 说说管理 ============ -->
-              <section v-else-if="page === 'shuoshuo'" class="page">
-                <div class="page-head"><h1>说说管理</h1></div>
-                <div
-                  class="card editor-card editor-dropzone"
-                  @dragenter="onShuoDragEnter"
-                  @dragover="onShuoDragOver"
-                  @dragleave="onShuoDragLeave"
-                  @drop="onShuoDrop"
-                >
-                  <div v-if="shuoDragActive" class="drop-overlay">
-                    <el-icon :size="36"><epi-upload-filled></epi-upload-filled></el-icon>
-                    <span>松开鼠标，图片上传到图床作为配图</span>
+              <!-- ============ 页面内容 ============ -->
+              <section v-else-if="page === 'spec'" class="page">
+                <template v-if="!specEditorView">
+                  <div class="page-head"><h1>页面内容</h1></div>
+                  <div class="card">
+                    <div v-if="specError" class="center-text msg">{{ specError }}</div>
+                    <el-table v-else :data="specFiles" v-loading="specLoading" empty-text="没有页面文件" style="width: 100%">
+                      <el-table-column label="页面" min-width="220">
+                        <template #default="{ row }">
+                          <div class="t-title">
+                            <span class="t-name" @click="openSpecEditor(row.name)">{{ row.label }}</span>
+                            <el-tag size="small" type="info" effect="plain">{{ row.name }}</el-tag>
+                          </div>
+                          <div class="t-meta">Markdown 源文件 · src/content/spec/</div>
+                        </template>
+                      </el-table-column>
+                      <el-table-column label="大小" width="110">
+                        <template #default="{ row }">{{ formatSize(row.size) }}</template>
+                      </el-table-column>
+                      <el-table-column label="操作" width="110" align="right">
+                        <template #default="{ row }">
+                          <el-button link type="primary" @click="openSpecEditor(row.name)">编辑</el-button>
+                        </template>
+                      </el-table-column>
+                    </el-table>
                   </div>
-                  <div v-if="imgUploading" class="drop-overlay uploading">
-                    <el-icon :size="30" class="rot"><epi-loading></epi-loading></el-icon>
-                    <span>正在上传到图床 {{ imgDone }}/{{ imgTotal }}</span>
+                </template>
+
+                <template v-else>
+                  <div class="page-head">
+                    <el-button @click="backToSpecList">
+                      <el-icon><epi-arrow-left></epi-arrow-left></el-icon><span>返回列表</span>
+                    </el-button>
+                    <h1 class="editor-h1">编辑：{{ editingSpecLabel }}</h1>
+                    <div class="flex-spacer"></div>
+                    <el-button type="primary" :loading="savingSpec" @click="saveSpec">保存页面</el-button>
                   </div>
-                  <h2>{{ editingShuoFile ? "编辑说说" : "发布说说" }}</h2>
-                  <el-input
-                    v-model="sf.content"
-                    type="textarea"
-                    :rows="4"
-                    placeholder="写点什么…支持 Markdown 语法，可直接拖入 / 粘贴图片"
-                    @paste="onShuoPaste"
-                  ></el-input>
-                  <div class="field">
-                    <span class="field-label">标签（回车添加）</span>
-                    <div class="tags-input-box">
-                      <el-tag v-for="t in sTags" :key="t" size="small" closable @close="removeSTag(t)">{{ t }}</el-tag>
-                      <input v-model="sTagInput" class="tag-input" placeholder="输入标签后回车添加" @keydown.enter.prevent="addSTag" />
+                  <div class="card">
+                    <el-input
+                      v-model="specContent"
+                      type="textarea"
+                      :rows="24"
+                      class="mono-input"
+                      spellcheck="false"
+                      placeholder="Markdown / MDX 内容…"
+                    ></el-input>
+                    <div class="meta-row">
+                      <span class="muted">{{ specContent.length }} 字符</span>
+                      <span class="flex-spacer"></span>
+                      <span class="muted">保存后 1-3 分钟内博客自动更新</span>
                     </div>
                   </div>
-                  <div v-if="sf.image" class="img-preview">
-                    <img :src="sf.image" alt="配图预览" />
-                    <span class="img-path">{{ sf.image }}</span>
-                    <el-button size="small" type="danger" plain @click="sf.image = ''">移除配图</el-button>
-                  </div>
-                  <div class="actions-row">
-                    <el-date-picker v-model="sf.date" type="datetime" value-format="YYYY-MM-DDTHH:mm" format="YYYY-MM-DD HH:mm" placeholder="发布时间（东八区）"></el-date-picker>
-                    <el-button plain @click="$refs.fImage.click()">
-                      <el-icon><epi-picture></epi-picture></el-icon><span>添加配图</span>
-                    </el-button>
-                    <input ref="fImage" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/avif" hidden @change="onShuoImage" />
-                    <span class="flex-spacer"></span>
-                    <el-button v-if="editingShuoFile" @click="resetShuoEditor">取消编辑</el-button>
-                    <el-button type="primary" :loading="publishing" @click="publishShuoshuo">{{ editingShuoFile ? "保存修改" : "发布" }}</el-button>
-                  </div>
+                </template>
+              </section>
+
+              <!-- ============ 站点配置 ============ -->
+              <section v-else-if="page === 'config'" class="page">
+                <div class="page-head">
+                  <h1>站点配置</h1>
+                  <div class="flex-spacer"></div>
+                  <el-radio-group v-model="cfgMode">
+                    <el-radio-button value="form">表单编辑</el-radio-button>
+                    <el-radio-button value="raw">源码编辑</el-radio-button>
+                  </el-radio-group>
                 </div>
-                <div v-loading="shuoLoading">
-                  <div v-if="shuoError" class="center-text msg">{{ shuoError }}</div>
-                  <div v-else-if="shuoshuoList.length === 0" class="center-text muted empty-tip">还没有说说，发布第一条吧</div>
-                  <div v-for="p in shuoshuoList" :key="p.file" class="card post-card" :class="{ editing: editingShuoFile === p.file }">
-                    <div class="post-head">
-                      <span class="post-date">{{ displayDate(p.date) }} · {{ p.file }}</span>
-                      <div class="post-tags">
-                        <el-tag v-for="t in p.tags" :key="t" size="small" type="info" effect="plain">{{ t }}</el-tag>
+
+                <!-- 表单模式 -->
+                <template v-if="cfgMode === 'form'">
+                  <div class="card cfg-file-bar">
+                    <el-select v-model="cfgTab" style="width: 260px" @change="loadCfgForm">
+                      <el-option v-for="f in cfgFormFiles" :key="f.value" :label="f.label" :value="f.value"></el-option>
+                    </el-select>
+                    <span class="muted">常用配置的结构化表单，保存时只修改对应字段；更多配置请用源码编辑</span>
+                  </div>
+                  <div v-loading="cfgLoading">
+                    <div v-if="cfgError" class="center-text msg">{{ cfgError }}</div>
+                    <template v-else-if="cfgDef">
+                      <div v-for="g in cfgDef.groups" :key="g.title" class="card cfg-group">
+                        <h3>{{ g.title }}</h3>
+                        <div class="form-grid">
+                          <template v-for="f in g.fields" :key="f.id">
+                            <div v-if="f.type === 'objectList'" class="field span-2">
+                              <span class="field-label">{{ f.label }}</span>
+                              <div v-for="(item, idx) in cfgListItems(f.id)" :key="idx" class="obj-row">
+                                <template v-for="col in f.columns" :key="col.key">
+                                  <el-checkbox v-if="col.type === 'boolean'" v-model="item[col.key]">{{ col.label }}</el-checkbox>
+                                  <el-input v-else v-model="item[col.key]" :placeholder="col.label"></el-input>
+                                </template>
+                                <el-button link type="danger" @click="removeCfgItem(f.id, idx)">删除</el-button>
+                              </div>
+                              <div>
+                                <el-button plain size="small" @click="addCfgItem(f)">添加一项</el-button>
+                              </div>
+                            </div>
+                            <div v-else class="field">
+                              <span class="field-label">{{ f.label }}</span>
+                              <el-switch v-if="f.type === 'boolean'" v-model="cfgValues[cfgTab][f.id]"></el-switch>
+                              <el-input-number
+                                v-else-if="f.type === 'number'"
+                                v-model="cfgValues[cfgTab][f.id]"
+                                :min="f.min"
+                                :max="f.max"
+                                style="width: 100%"
+                              ></el-input-number>
+                              <el-select v-else-if="f.type === 'enum'" v-model="cfgValues[cfgTab][f.id]" style="width: 100%">
+                                <el-option v-for="o in f.options" :key="o" :label="o" :value="o"></el-option>
+                              </el-select>
+                              <el-input
+                                v-else-if="f.textarea || f.type === 'stringArray'"
+                                v-model="cfgValues[cfgTab][f.id]"
+                                type="textarea"
+                                :rows="3"
+                              ></el-input>
+                              <el-input v-else v-model="cfgValues[cfgTab][f.id]"></el-input>
+                            </div>
+                          </template>
+                        </div>
+                      </div>
+                      <div class="card cfg-save-bar">
+                        <span class="muted">保存将提交 GitHub 并触发博客重建，约 1-3 分钟生效</span>
+                        <el-button type="primary" :loading="cfgSaving" @click="saveCfgForm">保存全部更改</el-button>
+                      </div>
+                    </template>
+                  </div>
+                </template>
+
+                <!-- 源码模式 -->
+                <template v-else>
+                  <div class="card cfg-file-bar">
+                    <el-select v-model="cfgRawFile" style="width: 320px" @change="loadCfgRaw">
+                      <el-option v-for="f in cfgRawFiles" :key="f.value" :label="f.label" :value="f.value"></el-option>
+                    </el-select>
+                    <el-tag v-if="cfgRawDirty" type="warning" size="small">未保存</el-tag>
+                    <span class="flex-spacer"></span>
+                    <el-button :disabled="!cfgRawDirty" @click="resetCfgRaw">放弃修改</el-button>
+                    <el-button type="primary" :loading="cfgRawSaving" @click="saveCfgRaw">保存文件</el-button>
+                  </div>
+                  <div class="card">
+                    <div v-loading="cfgRawLoading">
+                      <el-input
+                        v-model="cfgRawContent"
+                        type="textarea"
+                        :rows="24"
+                        class="mono-input"
+                        spellcheck="false"
+                      ></el-input>
+                    </div>
+                    <div class="meta-row">
+                      <span class="muted">直接编辑 TypeScript 源码，格式错误会导致博客构建失败</span>
+                      <span class="flex-spacer"></span>
+                      <span class="muted">{{ cfgRawContent.length }} 字符</span>
+                    </div>
+                  </div>
+                </template>
+              </section>
+
+              <!-- ============ 静态资源 ============ -->
+              <section v-else-if="page === 'assets'" class="page">
+                <div class="page-head">
+                  <h1>静态资源</h1>
+                  <span class="muted">public/ 目录 · 同名上传即替换</span>
+                  <div class="flex-spacer"></div>
+                  <el-button type="primary" :loading="assetUploading" @click="$refs.assetFile.click()">
+                    <el-icon><epi-upload></epi-upload></el-icon><span>上传到当前目录</span>
+                  </el-button>
+                  <input ref="assetFile" type="file" multiple hidden @change="onAssetPick" />
+                </div>
+                <div
+                  class="card editor-dropzone"
+                  @dragenter="onAssetDragEnter"
+                  @dragover="onAssetDragOver"
+                  @dragleave="onAssetDragLeave"
+                  @drop="onAssetDrop"
+                >
+                  <div v-if="assetDragActive" class="drop-overlay">
+                    <el-icon :size="36"><epi-upload-filled></epi-upload-filled></el-icon>
+                    <span>松开鼠标，上传到 {{ assetDir ? "public/" + assetDir + "/" : "public/" }}</span>
+                  </div>
+                  <div class="crumbs">
+                    <span
+                      v-for="(c, i) in assetCrumbs"
+                      :key="i"
+                      class="crumb"
+                      :class="{ current: i === assetCrumbs.length - 1 }"
+                      @click="enterAssetDir(c.path)"
+                    >{{ c.name }}</span>
+                  </div>
+                  <div v-loading="assetLoading" class="asset-grid">
+                    <div v-if="assetError" class="center-text msg span-all">{{ assetError }}</div>
+                    <div v-else-if="!assetEntries.length" class="center-text muted empty-tip span-all">空目录</div>
+                    <div
+                      v-for="e in assetEntries"
+                      :key="e.name"
+                      class="asset-item"
+                      :class="{ dir: e.type === 'dir' }"
+                      @click="clickAsset(e)"
+                    >
+                      <img
+                        v-if="e.type === 'file' && isImage(e.name)"
+                        class="asset-thumb"
+                        :src="'/' + assetJoin(e.name)"
+                        loading="lazy"
+                        @error="$event.target.style.visibility = 'hidden'"
+                      />
+                      <el-icon v-else :size="36" class="asset-fileicon">
+                        <component :is="e.type === 'dir' ? 'EpiFolderOpened' : 'EpiDocument'"></component>
+                      </el-icon>
+                      <div class="asset-name" :title="e.name">{{ e.name }}</div>
+                      <div class="asset-size">{{ e.type === 'dir' ? '目录' : formatSize(e.size) }}</div>
+                      <div v-if="e.type === 'file'" class="asset-actions">
+                        <el-button v-if="isImage(e.name)" size="small" text type="primary" @click.stop="previewAsset(e)">预览</el-button>
+                        <el-button size="small" text type="primary" @click.stop="copyAssetPath(e)">复制路径</el-button>
+                        <el-button size="small" text type="danger" @click.stop="deleteAsset(e)">删除</el-button>
                       </div>
                     </div>
-                    <p class="post-content">{{ p.content }}</p>
-                    <img v-if="p.image" class="post-image" :src="p.image" alt="配图" loading="lazy" />
-                    <div class="post-actions">
-                      <el-button size="small" text type="primary" @click="fillShuoEditor(p)">编辑</el-button>
-                      <el-button size="small" text type="danger" @click="deleteShuoshuo(p)">删除</el-button>
-                    </div>
                   </div>
                 </div>
+                <el-dialog v-model="assetPreviewOpen" :title="assetPreview && assetPreview.name" width="min(720px, 92vw)">
+                  <img v-if="assetPreview" :src="assetPreview.url" style="width: 100%; border-radius: 8px" :alt="assetPreview.name" />
+                </el-dialog>
               </section>
 
               <!-- ============ 友链管理 ============ -->
@@ -483,6 +644,7 @@
     <script src="/vendor/element-plus.full.min.js"></script>
     <script src="/vendor/zh-cn.min.js"></script>
     <script src="/vendor/element-icons.iife.min.js"></script>
-    <script src="/app.js?v=2.4"></script>
+    <script src="/config-forms.js?v=3.0"></script>
+    <script src="/app.js?v=3.0"></script>
   </body>
 </html>

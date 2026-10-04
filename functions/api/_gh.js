@@ -33,6 +33,16 @@ export const SHUOSHUO_DIR = "src/content/shuoshuo";
 export const POSTS_DIR = "src/content/posts";
 export const IMAGE_DIR = "public/shuoshuo/images";
 export const POST_IMAGE_DIR = "src/content/posts/images";
+export const CONFIG_DIR = "src/config";
+export const SPEC_DIR = "src/content/spec";
+export const PUBLIC_DIR = "public";
+
+// GitHub Contents API 返回的 base64 内容 → UTF-8 文本
+export function decodeDetail(detail) {
+  return new TextDecoder().decode(
+    Uint8Array.from(atob(String(detail?.content || "").replace(/\s/g, "")), (c) => c.charCodeAt(0)),
+  );
+}
 
 function gh(env, path, options = {}) {
   return fetch(`${API}${path}`, {
